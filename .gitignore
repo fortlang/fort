@@ -1,0 +1,12 @@
+a.out
+*.ll
+*.ll.exe
+*.dylib
+*.orig
+*.o
+*.tix
+*.bak
+dist-newstyle
+bin
+mandelbrot.pbm
+fasta-output.txt
