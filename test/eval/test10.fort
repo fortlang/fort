@@ -1,0 +1,74 @@
+main = do
+  c = 'a'
+  fls = False
+
+  a = if
+    True -> { foo = c, bar = True }
+    False -> { foo = c } with { bar = fls }
+  println a
+
+  case 0xff of
+    0xff -> println "0xff"
+
+  a = if
+    True -> { baz = a }
+    False -> { baz = { foo = c } with { bar = fls } }
+  println a
+
+  () = ()
+  (u : `()`) = ()
+  a = if
+    True -> u : `()`
+    False -> ()
+  println a
+
+  a = if
+    True -> r where
+      r = Red
+    False -> Blue
+  println a
+
+  p = if
+    True -> Prim.alloca `Array 3 String`
+    False -> Prim.alloca `Array 3 String`
+  println p
+
+  a = if
+    True -> Just a
+    False -> Just Blue
+  println a
+
+  dbl0 = 2.2
+
+  x = case Just 1.1 of
+    Blue -> 4.2
+    Red -> dbl0
+    Left a -> a
+    Just dbl -> dbl
+    _ -> 3.4
+
+  println x
+
+  a = if
+    True -> ('c', ((), "hello"))
+    False -> ('b', ((), "goodbye"))
+  println a
+
+  arr = if
+    False -> [a, a]
+    True -> [a, ('b', ((), "goodbye"))]
+  println arr
+
+  a = if
+    False -> [arr, arr]
+    True -> [arr, [a, ('b', ((), "goodbye"))]]
+  println a
+
+  if
+    False -> Prim.exit 42
+    True -> Prim.exit 0
+  42
+
+println = \x -> do
+  Prim.print x
+  Prim.print '\n'

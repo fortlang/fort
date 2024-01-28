@@ -1,0 +1,11 @@
+operator $ = apply infixr 0.0
+
+apply = \f a -> f a
+
+add = \x y -> Prim.add (x, y)
+
+main = println $ add 1 $ add 2 3
+
+println = \x -> do
+  Prim.print x
+  Prim.print '\n'

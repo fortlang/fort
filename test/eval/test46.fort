@@ -1,0 +1,10 @@
+type T = Sum
+  A: Bool
+  B
+
+println = \a -> do
+  Prim.print a
+  Prim.print '\n'
+
+main = do
+  println (Prim.cast (B, `T`))

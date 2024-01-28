@@ -1,0 +1,2 @@
+main = case 1 of
+  Nothing -> 0

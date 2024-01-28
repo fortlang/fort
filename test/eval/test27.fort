@@ -1,0 +1,33 @@
+myloop = \i0 -> do
+  tailrec
+    go = \i -> Prim.exit 0
+  go i0
+
+;; BAL:
+;; myloop = \i0 -> do
+  ;; tailrec
+   ;;  go = \ma -> case ma of
+    ;;   Nothing -> println "done"
+     ;;  Just i -> do
+      ;;   print i
+;; 	print ' '
+;; 	if
+;; 	  i == 0 -> go Nothing
+;; 	  True -> go (Just (i - 1))
+;; 
+;;   go (Just i0)
+
+operator - = subtract infixl 6.0
+equal = curry Prim.eq
+operator == = equal infix 4.0
+subtract = curry Prim.sub
+
+print = Prim.print
+println = \x -> do
+  print x
+  print '\n'
+
+curry = \f a b -> f (a, b)
+
+main = do
+  myloop 3

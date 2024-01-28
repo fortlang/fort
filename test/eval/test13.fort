@@ -1,0 +1,28 @@
+main = do
+  println (0xff << 0x1)
+  println (0xff >> 0x1)
+  println (255 >> 1)
+  println (0xff & 0x1)
+  println (0x0 | 0x1)
+  println (0x11 ^ 0x10)
+
+println = \x -> do
+  Prim.print x
+  Prim.print '\n'
+
+curry = \f a b -> f (a, b)
+
+operator & = bit-and infixl 7.0
+operator ^ = bit-xor infixl 6.0
+operator | = bit-or infixl 5.0
+operator << = bit-shift-l infixl 8.0
+operator >> = bit-shift-r infixl 8.0
+
+bit-and = curry Prim.and
+bit-or = curry Prim.or
+bit-xor = curry Prim.xor
+bit-shift-l = curry Prim.shl
+bit-shift-r = curry Prim.shr
+
+
+

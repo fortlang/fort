@@ -1,0 +1,3 @@
+main = do
+  p = Prim.alloca `Array 2 Sum { Nothing: Bool }`
+  Prim.store (p, Nothing)

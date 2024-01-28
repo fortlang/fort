@@ -1,0 +1,2 @@
+qualifier Prim = "test/tcerr/test0.fort"
+main = ()

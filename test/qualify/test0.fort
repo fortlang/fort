@@ -1,0 +1,6 @@
+type T = I 32
+
+x = 7
+
+y: `T` = x + Test1.foo : `TT`
+

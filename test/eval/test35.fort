@@ -1,0 +1,27 @@
+operator - = sub infixl 6.0
+
+sub = \a b -> Prim.sub (a, b)
+
+print = Prim.print
+println = \x -> do
+  print x
+  print "\n"
+
+main = do
+  tailrec
+    stuff = \i -> i
+    blah = \i -> case i of
+      1 -> Odd
+      _ -> even i
+
+    even = \i -> case i of
+      0 -> Even
+      1 -> blah i
+      2 -> odd (i - 1)
+      _ -> odd (i - 1)
+
+    odd = \i -> case i of
+      0 -> blah i
+      _ -> even (i - 1)
+
+  println (even 5)

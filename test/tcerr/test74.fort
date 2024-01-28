@@ -1,0 +1,3 @@
+main = do
+  p = Prim.alloca `Array 2 (C 8)`
+  Prim.load p

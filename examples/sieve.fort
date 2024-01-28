@@ -1,0 +1,93 @@
+qualifier Prelude = "examples/prelude.fort"
+
+main = do
+  n = if
+    argc > 1 -> atoi @(argv # 1)
+    otherwise -> 1000000
+  if
+    n < 2 -> do
+      println "n is too small"
+      exit 1
+    n > 1000000 -> do
+      println "n is too large"
+      exit 1
+    otherwise -> do
+      init-sieve n
+      timed-test 5.0 n
+
+timed-test = \total-time n -> do
+  print "time is "
+  println total-time
+  print "n is "
+  println n
+
+  t0 = clock-gettime ()
+
+  passes = loop 0 $ \passes -> do
+    elapsed-time = clock-gettime () - t0
+    if
+      elapsed-time >= total-time -> do
+        print "passes = "
+        println passes
+        print "elapsed time = "
+        println elapsed-time
+	Done ()
+      otherwise -> do
+        run-sieve n
+	Continue (passes + 1)
+
+  print "number of primes = "
+  println $ count-primes n
+
+count-primes = \n -> do
+  repeat-accum-from 1 (n >> 1) 1 $ \i ncount -> if
+    is-prime i -> ncount + 1
+    otherwise -> ncount
+
+type BitArray = Array 15625 Int
+
+~init-sieve = \n -> do
+  n = ((15 + n) / 2) / 8
+  memset sieve '\0' n
+
+sieve = alloca `BitArray`
+
+mask = cast 0x1f `Int`
+shift = 5
+
+bit-of = \i -> 1 << (i & mask)
+sieve-index = \i -> sieve # (i >> shift)
+
+is-prime = \i -> @(sieve-index i) & bit-of i == 0
+mark-not-prime = \i -> sieve-index i |= bit-of i
+
+run-sieve = \maxints -> do
+  init-sieve maxints
+
+  maxintsh = maxints >> 1
+
+  q = cast (sqrt (cast maxints `Float`)) `Int` + 1
+  qh = q >> 1
+
+  loop 1 $ \factorh -> do
+     if
+      factorh <= qh -> do
+	i = loop factorh $ \i -> do
+	   if
+            i >= maxintsh -> Done i
+            is-prime i -> Done i
+            otherwise -> Continue $ i + 1
+
+        factor = (i << 1) + 1 ;; reconstituting the prime value
+        factorh = i + 1
+
+        loop ((factor * factor) >> 1) $ \i -> do
+	   if
+            i < maxintsh -> do
+              mark-not-prime i
+              Continue (i + factor)
+            otherwise -> Done ()
+
+        Continue factorh
+
+      otherwise -> Done ()

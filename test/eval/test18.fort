@@ -1,0 +1,134 @@
+
+println = \x -> do
+  Prim.print x
+  Prim.print '\n'
+
+alloca = Prim.alloca
+
+curry = \f a b -> f (a, b)
+
+load = Prim.load
+store = curry Prim.store
+
+index = curry Prim.index
+
+
+type T = Record
+  y: C 8
+  z: I 32
+
+operator @ = load
+operator := = store infix -1.0
+operator # = index infixl 9.0
+
+main = do
+  ;; array of records
+  a = { y = 'b', z = 42 }
+
+  p = alloca `Array 3 T`
+
+  p#0 := a
+
+  println @(p#0)
+
+  (p#0).y := 'c'
+  println @(p#0)
+
+  a = @(p#0)
+  println a
+
+  println (@(p#0).y, @(p#0).z)
+
+  ;; array of sums
+  a = Just 'b'
+
+  println a
+
+  p = alloca `Array 3 Foo`
+
+  p#0 := a
+
+  println @(p#0)
+
+  p#0 := Nothing
+
+  println @(p#0)
+
+  p#0 := Also ("somestring", True)
+  println @(p#0)
+
+  ;; array of sums of sums/records
+  p = alloca `Array 5 EFooT`
+
+  a = Left (Just 'z')
+  println a
+
+  p#3 := a
+  a' = @(p#3)
+  println a'
+
+  p#3 := Left Nothing
+  println @(p#3)
+
+  p#3 := Right { y = 's', z = 99 }
+  println @(p#3)
+
+  ;; array of records of sums/records
+  p = alloca `Array 7 RecOfSumAndRecs`
+  a = { yy = { y = 'w', z = 12 }, zz = Just 'i' }
+  println a
+  p#5 := a
+  println @(p#5)
+
+  p#5 := { yy = { y = 'A', z = 11 }, zz = Nothing }
+  println @(p#5)
+
+  ;; array of records of array
+  p = alloca `Array 9 RecOfArrRecSum`
+
+  (p#7).rarsT := { y = 'E', z = 77 }
+  println (p#7).rarsT
+  println @((p#7).rarsT)
+  ;; BAL: this is a use before defined println (@(p#7)).rarsT
+
+  (p#7).rarsArr#0 := "hello"
+  (p#7).rarsArr#1 := "world"
+   
+  println (p#7).rarsArr
+  println @((p#7).rarsArr#0)
+  println @((p#7).rarsArr#1)
+
+  (p#7).rarsFoo := Nothing
+  println @((p#7).rarsFoo)
+
+  (p#7).rarsFoo := Just 'S'
+  println @(p#7).rarsFoo
+
+  0
+
+type RecOfArrRecSum = Record
+  rarsT: T
+  rarsArr: Array 2 String
+  rarsFoo: Foo
+
+;; type TupleOfArrRecSum = (T, Array 2 Bool, Foo)
+
+type RecOfSumAndRecs = Record
+  yy: T
+  zz: Foo
+
+type Foo = Sum
+  Just: C 8
+  Nothing
+  Also: (String, Bool)
+  ;; AlsoArray: Array 2 String
+  ;; BAL: how to create this value??
+  ;; maybe you just can't?
+  ;; p = alloca `Array 3 Foo`
+  ;; p#0.tag = AlsoArray
+  ;; p#0.AlsoArray#0 := "somestring"
+  ;; p#0.AlsoArray#1 := "somestring too"
+
+type EFooT = Sum
+  Left: Foo
+  Right: T

@@ -1,0 +1,221 @@
+type Int = I 32
+type Char = C 8
+type Double = F 64
+type Float = F 32
+type Size = U 64
+
+operator $ = apply infixr 0.0
+apply = \f ~a -> f a
+
+pair = \x y -> (x, y)
+swap = \(x, y) -> (y, x)
+flip = \f ~a ~b -> f b a
+
+operator == = equal infix 4.0
+equal = curry Prim.eq
+
+operator != = not-equal infix 4.0
+not-equal = curry Prim.ne
+
+operator > = greater-than infix 4.0
+greater-than = curry Prim.gt
+
+operator < = less-than infix 4.0
+less-than = curry Prim.lt
+
+operator >= = greater-than-or-equal infix 4.0
+greater-than-or-equal = curry Prim.gte
+
+operator <= = less-than-or-equal infix 4.0
+less-than-or-equal = curry Prim.lte
+
+operator && = and infixr 3.0
+operator || = or infixr 2.0
+
+operator * = multiply infixl 7.0
+multiply = curry Prim.mul
+
+operator / = divide infixl 7.0
+divide = curry Prim.div
+
+operator % = remainder infixl 7.0
+remainder = curry Prim.rem
+
+operator + = add infixl 6.0
+add = curry Prim.add
+
+operator - = subtract infixl 6.0
+subtract = curry Prim.sub
+
+curry = \f x y -> f (x, y)
+
+operator @ = load
+load = Prim.load
+
+operator := = store infix -1.0
+store = curry Prim.store
+
+operator # = index infixl 9.0
+index = curry Prim.index
+
+operator & = bit-and infixl 7.0
+bit-and = curry Prim.and
+
+operator ^ = bit-xor infixl 6.0
+bit-xor = curry Prim.xor
+
+operator | = bit-or infixl 5.0
+bit-or = curry Prim.or
+
+operator << = bit-shift-l infixl 8.0
+bit-shift-l = curry Prim.shl
+
+operator >> = bit-shift-r infixl 8.0
+bit-shift-r = curry Prim.shr
+
+debug = \~a -> when Prim.slow-safe-build $ do
+  print "DEBUG"
+  brackets $ print a
+
+unsafe = \f -> case f of
+  Ok a -> a
+  b -> panic b
+
+bracket = \~pre ~post ~f -> do
+  pre
+  a = f
+  post
+  a
+
+loop = \a0 ~f -> do
+  tailrec
+    go = \a -> case f a of
+      Continue a' -> go a'
+      Done b -> b
+  go a0
+
+assert = \r a -> when (Prim.slow-safe-build && not r) $ panic $ AssertionFailed a
+;; BAL: add a builtin that will evaluate to the file, line, col
+
+panic = \a -> do
+  println ""
+
+  ;; put terminal back into normal mode
+  ;; BAL: unset-alt-buf
+  ;; BAL: unset-raw-mode
+
+  print "panic:"
+  println a
+
+  exit 2
+
+negate = Prim.neg
+
+exit = Prim.exit
+
+panic-on-err = \a -> case a of
+  Ok b -> b
+  otherwise -> panic a
+
+otherwise = True
+
+alloca = Prim.alloca
+
+void = \f -> do
+  _ = f
+  ()
+
+or = \a ~b -> if
+  a -> True
+  otherwise -> b
+
+and = \a ~b -> if
+  a -> b
+  otherwise -> False
+
+when = \a ~f -> if
+  a -> f
+  otherwise -> ()
+
+not = \r -> if
+  r -> False
+  otherwise -> True
+
+print = Prim.print
+
+println = \a -> do
+  print a
+  print '\n'
+
+brackets = bracket (print '[') (print ']')
+
+min = \x y -> if
+  x <= y -> x
+  otherwise -> y
+
+max = \x y -> if
+  x >= y -> x
+  otherwise -> y
+
+clamp = \x y z -> min (max x y) z
+
+countof = Prim.countof
+typeof = Prim.typeof
+
+from-ok = \x -> case x of
+  Ok a -> a
+
+cast = curry Prim.cast
+
+argcp = extern "FORT_argc" `Pointer Int`
+argvp = extern "FORT_argv" `Pointer (Pointer (Array 256 (Pointer Char)))`
+
+argc = @argcp
+argv = @argvp
+
+repeat = repeat-from 0
+
+repeat-from = \i0 n f -> loop i0 $ \i -> if
+  i < n -> do
+    f i
+    Continue (i + 1)
+  otherwise -> Done ()
+
+repeat-accum = repeat-accum-from 0
+
+repeat-accum-from = \i0 n a0 f -> loop (i0, a0) $ \(i, a) -> if
+  i < n -> Continue (i + 1, f i a)
+  otherwise -> Done a
+
+abs = Prim.abs
+sqrt = Prim.sqrt
+sin = Prim.sin
+cos = Prim.cos
+floor = Prim.floor
+ceiling = Prim.ceil
+truncate = Prim.truncate
+round = Prim.round
+
+atoi = extern "atoi" `Pointer Char -> Int`
+
+clock-gettime = extern "clock_gettime_monotonic" `() -> Double`
+
+inc = \p x -> p := @p + x
+operator += = inc infix -1.0
+
+dec = \p x -> p := @p - x
+operator -= = dec infix -1.0
+
+fst = \(a, _) -> a
+snd = \(_, b) -> b
+
+memcpy = \a b c -> Prim.memcpy (cast a `Pointer Char`, cast b `Pointer Char`, c)
+memmove = \a b c -> Prim.memmove (cast a `Pointer Char`, cast b `Pointer Char`, c)
+memset = \a b c -> Prim.memset (cast a `Pointer Char`, b, c)
+
+c-puts = extern "puts" `Pointer Char -> Int`
+puts = \s -> c-puts (cast s `Pointer Char`)
+
+operator |= = store-bit-or infix -1.0
+store-bit-or = \p i -> p := @p | i
+

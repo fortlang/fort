@@ -1,0 +1,3 @@
+main = do
+  case Prim.add (1.1, 2.2) of
+    3.3 -> ()

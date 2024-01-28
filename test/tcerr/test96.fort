@@ -1,0 +1,2 @@
+main = Prim.memcpy (8, 8, 8)
+

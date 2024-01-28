@@ -1,0 +1,12 @@
+qualifier Foo = "test/multieval/test0.fort.1"
+qualifier Bar = "test/multieval/test0.fort.2"
+qualifier ThisFile = "test/multieval/test0.fort"
+
+operator +> = Foo.add infixl 6.0
+
+main = do
+  println (1 + 1 > 1)
+  println (1 +> 1 > 1 + 1)
+  println (Prim.cast (1, `Foo.T`))
+  Foo.printx
+  Bar.printx

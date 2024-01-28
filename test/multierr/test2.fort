@@ -1,0 +1,5 @@
+qualifier Foo = "test/multierr/test2.fort.1"
+qualifier Bar = "test/multierr/test2.fort.2"
+
+main = do
+  println @@1

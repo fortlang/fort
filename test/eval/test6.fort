@@ -1,0 +1,35 @@
+operator - = sub infixl 6.0
+operator == = equal infix 4.0
+
+sub = \a b -> Prim.sub (a, b)
+equal = \a b -> Prim.eq (a, b)
+
+print = Prim.print
+println = \x -> do
+  print x
+  print "\n"
+
+main = do
+  tailrec
+    even = \i -> if
+      i == 0 -> Even
+      True -> odd (i - 1)
+
+    odd = \i -> if
+      i == 0 -> Odd
+      True -> even (i - 1)
+
+  print "5 is "
+  println (even 5)
+  print "4 is "
+  println (even 4)
+  print "5 is not "
+  println (odd 5)
+  print "4 is not "
+  println (odd 4)
+  print "0 is not "
+  a = case 0 of
+    0 -> even 3
+    _ -> Even
+  println a
+

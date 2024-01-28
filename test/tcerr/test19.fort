@@ -1,0 +1,3 @@
+main = case 'a' of
+  1 -> 0
+

@@ -1,0 +1,9 @@
+print = Prim.print
+
+println = \x -> do
+  print x
+  print '\n'
+
+operator @@ = add2
+add2 = \x -> Prim.add (x, 2)
+

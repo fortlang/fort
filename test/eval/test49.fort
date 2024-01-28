@@ -1,0 +1,6 @@
+main = do
+  c = Prim.add ('~', Prim.cast (1, `C 8`))
+  Prim.print (Prim.cast (c, `I 32`))
+  Prim.print c
+  Prim.print '\n'
+  Prim.print "\127\n"

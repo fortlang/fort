@@ -1,0 +1,1 @@
+main = Prim.cast (42, 42)

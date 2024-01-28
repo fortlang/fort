@@ -1,0 +1,4 @@
+operator * = multiply infixl 7.0
+operator + = add infixl 6.0
+test = 1 + 2 * 3
+

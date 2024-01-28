@@ -1,0 +1,1 @@
+main = Prim.countof True

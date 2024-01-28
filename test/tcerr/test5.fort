@@ -1,0 +1,2 @@
+main = case 1.2 of
+  _ -> 0

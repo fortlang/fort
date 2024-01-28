@@ -1,0 +1,10 @@
+println = \x -> do
+  Prim.print x
+  Prim.print '\n'
+
+main = do
+  println (Prim.typeof [True, False])
+  println (Prim.typeof `Array 3 Bool`)
+  println (Prim.countof [False, True, False])
+  p = Prim.alloca `Array 3 Bool`
+  println (Prim.countof p)

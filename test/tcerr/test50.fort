@@ -1,0 +1,4 @@
+type T = Sum
+  Blue
+
+main = Prim.cast (Red, `T`)

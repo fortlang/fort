@@ -1,0 +1,3 @@
+main = case 1 of
+  1 -> 'c'
+  x -> x

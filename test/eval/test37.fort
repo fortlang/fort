@@ -1,0 +1,99 @@
+operator # = index infixl 9.0
+index = curry Prim.index
+operator $ = apply infixr 0.0
+apply = \f ~a -> f a
+operator + = add infixl 6.0
+add = curry Prim.add
+operator - = subtract infixl 6.0
+subtract = curry Prim.sub
+operator > = greater-than infix 4.0
+greater-than = curry Prim.gt
+operator < = less-than infix 4.0
+less-than = curry Prim.lt
+operator @ = load
+load = Prim.load
+
+curry = \f x y -> f (x, y)
+
+operator := = store infix -1.0
+store = curry Prim.store
+
+init = \ty -> record
+  next = 0
+  buf = Prim.alloca ty
+
+push = \x st -> do
+  st.buf#st.next := x
+  st with next = st.next + 1
+
+pop = \st -> if
+  st.next > 0 -> do
+    i = st.next - 1
+    Ok (@(st.buf#i), st with { next = i })
+  otherwise -> ErrStackEmpty
+
+debug = \st -> do
+  print "stack["
+  loop 0 $ \i -> if
+    i < st.next -> do
+      print @(st.buf#i)
+      print ","
+      Continue $ i + 1
+    otherwise -> Done ()
+  println "]"
+
+type Char = C 8
+print = Prim.print
+otherwise = True
+from-ok = \x -> case x of
+  Ok a -> a
+
+loop = \a0 ~f -> do
+  tailrec
+    go = \a -> case f a of
+      Continue a' -> go a'
+      Done b -> b
+  go a0
+
+println = \a -> do
+  print a
+  print '\n'
+
+main = do
+  sk = init `Array 3 Char`
+  debug sk
+
+  sk = push 'a' sk
+  debug sk
+
+  sk = push 'b' sk
+  debug sk
+
+  (c, sk) = from-ok $ pop sk
+  println c
+  debug sk
+
+  (c, sk) = from-ok $ pop sk
+  println c
+  debug sk
+
+  println $ pop sk
+
+  sk = init `Array 3 AMaybe`
+  debug sk
+  sk = push Nothing sk
+  debug sk
+  sk = push (Just 'a') sk
+  debug sk
+
+  (mc, sk) = from-ok $ pop sk
+  debug sk
+
+  (mc, sk) = from-ok $ pop sk
+  debug sk
+
+  ()
+
+type AMaybe = Sum
+  Nothing
+  Just:  Char

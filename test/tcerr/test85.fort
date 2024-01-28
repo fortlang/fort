@@ -1,0 +1,11 @@
+type T = Sum
+  Just: Record
+    fst: Char
+    snd: Int
+
+type Int = I 32
+type Char = C 8
+
+main = do
+  p = Prim.alloca `T`
+  Prim.store (p, Just {fst = 'a'})

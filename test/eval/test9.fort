@@ -1,0 +1,18 @@
+cast = \x t -> Prim.cast (x, t)
+
+print = Prim.print
+
+println = \x -> do
+  print x
+  print '\n'
+
+main = do
+  x = cast 7 `F 64`
+  println x
+  x = cast x `I 16`
+  println x
+  x = cast x `F 32`
+  println x
+  x = cast x `I 16`
+  println x
+

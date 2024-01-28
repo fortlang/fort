@@ -1,0 +1,3 @@
+main = case Just 'a' of
+  Just -> 0
+

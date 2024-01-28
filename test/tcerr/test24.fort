@@ -1,0 +1,5 @@
+main = do
+  x = True
+  case 1 of
+    1 -> 2.1
+    2 -> x

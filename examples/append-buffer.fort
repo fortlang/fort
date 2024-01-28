@@ -1,0 +1,39 @@
+qualifier Prelude = "./examples/prelude.fort"
+
+init = \ty -> record
+  next = 0
+  buf = alloca ty
+
+push = \x st -> do
+  assert ((st.next >= 0) && (st.next < countof st.buf)) AppendBufferOverflow
+  st.buf#st.next := x
+  (st.next, st with { next = st.next + 1 })
+
+debug = \st -> do
+  print "append-buffer["
+  loop 0 $ \i -> if
+    i < st.next -> do
+      print @(st.buf#i)
+      print ","
+      Continue $ i + 1
+    otherwise -> Done ()
+  println "]"
+
+load = \i st -> do
+  assert ((i >= 0) && (i < st.next)) AppendBufferIndexOutOfBounds
+  @(st.buf#i)
+
+test = do
+  ab = init `Array 5 Char`
+  debug ab
+
+  (i, ab) = push 'a' ab
+  println i
+  debug ab
+  println $ load i ab
+
+  (i, ab) = push 'b' ab
+  println i
+  debug ab
+  println $ load i ab
+

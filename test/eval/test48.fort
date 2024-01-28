@@ -1,0 +1,7 @@
+main = f ()
+
+export "foo" = bar `() -> ()`
+
+bar = \() -> Prim.print "bar\n"
+
+f = extern "foo" `() -> ()`

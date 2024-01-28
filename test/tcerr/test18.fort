@@ -1,0 +1,3 @@
+main = case 1 of
+  Just _ -> 0
+

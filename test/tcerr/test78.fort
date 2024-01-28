@@ -1,0 +1,2 @@
+operator @@ = foo
+main = @@ 4

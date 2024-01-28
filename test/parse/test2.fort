@@ -1,0 +1,14 @@
+main = do
+  r = record
+    foo = 'b'
+  println r
+
+  r = r with
+    foo = 'c';
+    bar = False;
+    baz = "hello"
+  println r
+
+println = \x -> do
+  Prim.print x
+  Prim.print '\n'

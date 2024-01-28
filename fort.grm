@@ -1,0 +1,153 @@
+comment ";;"
+
+Module ::= toplevel Decl
+
+Decl nonterminal
+  TypeDecl ::= "type" UIdent "=" Type
+  PrefixDecl ::= "operator" PrefixOp "=" QualLIdent
+  InfixDecl ::= "operator" InfixOp "=" InfixInfo
+  ExpDecl ::= ExpDecl
+  QualDecl ::= "qualifier" UIdent "=" AString
+  ExportDecl ::= "export" AString "=" QualLIdent "`" Type "`"
+
+InfixInfo ::= QualLIdent Fixity ADouble
+
+ExpDecl nonterminal
+  Binding ::= Binding "=" Exp
+  TailRec ::= TailRecDecls
+
+Binding nonterminal
+  Delayed ::= "~" LIdent
+  Immediate ::= Pat
+
+TailRecDecls ::= layout "tailrec" TailRecDecl
+
+TailRecDecl ::= LIdent "=" "\\" LIdent "->" .Where
+
+Exp nonterminal
+  Lam ::= "\\" terminator "" Binding "->" Exp
+  ---
+  Where ::= .Where layout "where" ExpDecl
+  ---
+  Typed ::= .Typed ":" "`" Type "`"
+  ---
+  With ::= .With layout "with" FieldDecl
+  ---
+  InfixOper ::= .InfixOper InfixOp Exp
+  ---
+  App ::= .App .PrefixOper
+  ---
+  PrefixOper ::= PrefixOp .Exp0
+  --- Exp0
+  XDot ::= .Exp0 "." LIdent
+  Extern ::= "extern" AString "`" Type "`" 
+  Do ::= layout "do" Stmt
+  If ::= layout "if" IfBranch
+  Case ::= "case" Exp layout "of" CaseAlt
+  XRecord ::= layout "record" FieldDecl
+  Record ::= "{" terminator "," FieldDecl "}"
+  Tuple ::= tuple Exp
+  Parens ::= "(" Exp ")"
+  Unit ::= "()"
+  Array ::= "[" terminator "," Exp "]"
+  XArray ::= layout "array" Exp
+  EType ::= "`" Type "`"
+  Var ::= LIdent
+  Con ::= UIdent
+  Scalar ::= Scalar
+  Select ::= internal Exp "." LIdent
+  Qualified ::= internal UIdent "." LIdent
+
+IfBranch ::= .InfixOper "->" Exp
+FieldDecl ::= LIdent "=" Exp
+CaseAlt ::= AltPat "->" Exp
+
+Stmt nonterminal
+  TailRecLet ::= TailRecDecls
+  Stmt ::= Exp
+  XLet ::= Exp "=" Exp
+    ;; parsed as Exp then converted to Pat
+  Let ::= internal Pat "=" Exp
+
+AltPat nonterminal
+  PEnum ::= UIdent
+  PCon ::= UIdent Pat
+  PScalar ::= Scalar
+  PDefault ::= LIdent
+
+Pat nonterminal
+  PTyped ::= Pat ":" "`" Type "`"
+  PTuple ::= tuple Pat
+  PParens ::= "(" Pat ")"
+  PUnit ::= "()"
+  PVar ::= LIdent
+
+QualLIdent nonterminal
+  Qual ::= UIdent "." LIdent
+  UnQual ::= LIdent
+
+Fixity nonterminal
+  InfixN ::= "infix"
+  InfixL ::= "infixl"
+  InfixR ::= "infixr"
+
+Type nonterminal
+  TLam ::= "\\" terminator "" LIdent "=>" Type
+  ---
+  TFun ::= .TApp "->" .TFun
+  ---
+  TApp ::= .TApp .Type0
+  --- Type0
+  TRecord ::= layout "Record" TField
+  TSum ::= layout "Sum" TSum
+  TTuple ::= tuple Type
+  TParens ::= "(" Type ")"
+  TUnit ::= "()"
+  TPointer ::= "Pointer"
+  TArray ::= "Array"
+  TOpaque ::= "Opaque" AString
+  ;; String used by the type checker
+  TString ::= "String"
+  TUInt ::= "U"
+  TInt ::= "I"
+  TFloat ::= "F"
+  TChar ::= "C"
+  TBool ::= "Bool"
+  TVar ::= LIdent
+  TName ::= UIdent
+  TQualName ::= UIdent "." UIdent
+  TSize ::= UInt
+  TSizes ::= "[" terminator "," Size "]"
+
+Size nonterminal
+  SzNat ::= UInt
+  SzVar ::= LIdent
+
+TSum nonterminal
+  TCon ::= UIdent ":" Type
+  TEnum ::= UIdent
+
+TField ::= LIdent ":" Type
+
+Scalar nonterminal
+  ATrue ::= "True"
+  AFalse ::= "False"
+  Double ::= ADouble
+  UInt ::= UInt
+  Int ::= terminal ('-') digit+
+  Char ::= terminal '\'' ((char - '\'' - '\\') | ('\\' '\'') | ('\\' '\\') | ('\\' 'n') | ('\\' digit+)) '\''
+  String ::= AString
+
+UInt nonterminal
+  Dec ::= terminal digit+
+  Hex ::= terminal "0x" (digit | ['a' .. 'f'])+
+  Oct ::= terminal "0o" ['0' .. '7']+
+  Bin ::= terminal "0b" ['0' .. '1']+
+
+LIdent ::= terminal (lower | '_') (letter | digit | '_' | '-' | '\'')*
+UIdent ::= terminal upper         (letter | digit | '_' | '-' | '\'')*
+ADouble ::= terminal ('-')? (digit+ '.' digit+ ('e' '-'? digit+)?)
+AString ::= terminal '"' ((char - '"' - '\\') | ('\\' '"') | ('\\' '\\') | ('\\' 'n') | ('\\' digit+) | ('\\' 'x' (digit | ['a' .. 'f'])+))* '"'
+
+InfixOp  ::= terminal           ('+' | '-' | '=' | '!' | '#' | '$' | '%' | '^' | '&' | '*' | '|' | '/' | '<' | '>' | '.' | '?' | '~' | ':')+
+PrefixOp ::= terminal '@' ('@' | '+' | '-' | '=' | '!' | '#' | '$' | '%' | '^' | '&' | '*' | '|' | '/' | '<' | '>' | '.' | '?' | '~' | ':')*

@@ -1,0 +1,8 @@
+println = \a -> do
+  Prim.print a
+  Prim.print '\n'
+
+main = do
+  println (Prim.countof `Array 5 (C 8)`)
+  println (Prim.countof ['a','b','c'])
+  println (Prim.countof "blah")

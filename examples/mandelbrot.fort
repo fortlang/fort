@@ -1,0 +1,42 @@
+qualifier Prelude = "examples/prelude.fort"
+
+putchar = extern "putchar" `Int -> Int`
+atoi = extern "atoi" `Pointer Char -> Int`
+
+main = if
+  argc > 1 -> write-pbm (atoi (@(argv # 1)))
+  otherwise -> write-pbm 200
+
+write-pbm = \w -> do
+  h = w
+  println "P4"
+  print w
+  print " "
+  println h
+
+  limit2 = 4.0
+  iter = 50
+
+  repeat h $ \y -> do
+    ci = 2.0 * cast y `Double` / cast h `Double` - 1.0
+    void $ repeat-accum w (0, 0) $ \x (bit-num, byte-acc) -> do
+      cr = 2.0 * cast x `Double` / cast w `Double` - 1.5
+      (tr, ti) = loop (0, 0.0, 0.0) $ \(i, zi, zr) -> do
+        ti = zi * zi
+	tr = zr * zr
+        if
+          i < iter && (tr + ti <= limit2) -> do
+            zi = 2.0 * zr * zi + ci
+            zr = tr - ti + cr
+            Continue (i + 1, zi, zr)
+          otherwise -> Done (tr, ti)
+      byte-acc = (byte-acc << 1) | cast (tr + ti <= limit2) `Int`
+      if
+        bit-num == 7 -> do
+          void $ putchar byte-acc
+          (0, 0)
+        x == w - 1 -> do
+          void $ putchar (byte-acc << (8 - w % 8))
+          (0, 0)
+        otherwise -> (bit-num + 1, byte-acc)
+

@@ -1,0 +1,263 @@
+qualifier AB = "./examples/append-buffer.fort"
+qualifier PB = "./examples/piece-buffer.fort"
+qualifier Stack = "./examples/stack.fort"
+
+type NodeId = Int
+
+type Node = Sum
+  Leaf: Piece
+  Node: Record
+    weight: Int
+    left-nid: NodeId
+    right-nid: NodeId
+
+empty = Leaf $ record
+  offset = 0
+  length = 0
+
+is-empty = \nd -> case nd of
+  Leaf a -> a.length <= 0
+  _ -> False
+
+init = \cfg ->
+  pair empty $ record
+    nodes = AB.init cfg.node-buf
+    pieces = PB.init cfg.piece-buf
+    temp-stack = Stack.init cfg.temp-buf
+
+load = \nid rp -> AB.load nid rp.nodes
+
+nd-debug = \nd rp -> do
+  case nd of
+    Leaf lf -> PB.debug-piece lf rp.pieces
+    Node nd -> do
+      println (nd.weight, (nd.left-nid, nd.right-nid))
+
+nd-display = \nd rp -> do
+  case nd of
+    Leaf lf -> PB.display lf rp.pieces
+    Node nd -> ()
+
+push-children = \x stack -> do
+  case x of
+    Leaf _ -> stack
+    Node nd -> Stack.push nd.left-nid $ Stack.push nd.right-nid stack
+
+debug = \root rp -> do
+  println "rope["
+  print "root:"
+  nd-debug root rp
+
+  tmp = Stack.init `Array 16 NodeId`
+
+  loop (push-children root tmp) $ \stack -> do
+    case Stack.pop stack of
+      ErrStackEmpty -> Done ()
+      Ok (nid, stack) -> do
+        print nid
+        print ":"
+        node = load nid rp
+        nd-debug node rp
+        Continue $ push-children node stack
+
+  println "]"
+
+push = \x rp -> do
+  (nid, ns) = AB.push x rp.nodes
+  pair nid $ rp with nodes = ns
+
+join = \l r rp -> if
+  is-empty l -> (r, rp)
+  is-empty r -> (l, rp)
+  otherwise -> do
+    (i, rp) = push l rp
+    (j, rp) = push r rp
+    flip pair rp $ Node $ record
+      weight = length l rp
+      left-nid = i
+      right-nid = j
+
+done = \rp -> do
+  (piece, pb) = PB.done rp.pieces
+  pair (Leaf piece) $ rp with pieces = pb
+
+append = \x rp -> rp with
+  pieces = PB.append x rp.pieces
+
+length = \root st -> do
+  loop (0, root) $ \(total, node) -> case node of
+    Leaf a -> Done $ total + a.length
+    Node nd -> Continue (total + nd.weight, load nd.right-nid st)
+
+split = \n root rp -> do
+  (l, r, ops) = loop (n, root, rp.temp-stack) $ \(n, root, ops) -> case root of
+    Leaf lf -> do
+      len = clamp 0 n lf.length
+      Done (Leaf $ lf with { length = len }, Leaf { offset = lf.offset + len, length = lf.length - len}, ops)
+    Node nd -> if
+      n <= 0 -> Done (empty, root, ops)
+      n == nd.weight -> Done (load nd.left-nid rp, load nd.right-nid rp, ops)
+      n < nd.weight -> do
+        Continue (n, load nd.left-nid rp, Stack.push (AppendRight nd.right-nid) ops)
+      n > nd.weight -> do
+        Continue (n - nd.weight, load nd.right-nid rp, Stack.push (PrependLeft nd.left-nid) ops)
+
+  loop (cast l `Node`, cast r `Node`, ops, rp) $ \(l, r, ops, rp) -> do
+    case Stack.pop ops of
+      ErrStackEmpty -> Done (l, r, rp)
+      Ok (op, ops) -> case op of
+        AppendRight nid -> do
+          (r', rp) = join r (load nid rp) rp
+          Continue (l, r', ops, rp)
+        PrependLeft nid -> do
+          (l', rp) = join (load nid rp) l rp
+          Continue (l', r, ops, rp)
+
+display = \root rp -> do
+  print "\""
+  nd-display root rp
+  tmp = Stack.init `Array 16 NodeId`
+  loop (push-children root tmp) $ \stack -> do
+    case Stack.pop stack of
+      ErrStackEmpty -> Done ()
+      Ok (nid, stack) -> do
+        node = load nid rp
+        nd-display node rp
+        Continue $ push-children node stack
+  println "\""
+
+insert = \i nd root rp -> if
+  is-empty nd -> (root, rp)
+  otherwise -> do
+    (l, r, rp) = split i root rp
+    (l', rp) = join l nd rp
+    join l' r rp
+
+cut = \i n root rp -> do
+  (l, r, rp) = split i root rp
+  (lr, rr, rp) = split n r rp
+  (lr, join l rr rp)
+
+type Split = Sum
+  AppendRight: NodeId
+  PrependLeft: NodeId
+
+test = do
+  (root, rp) = init $ record
+    node-buf = `Array 64 Node`
+    temp-buf = `Array 16 Split`
+    piece-buf = `Array 8 Char`
+
+  debug root rp
+  
+  (ltree, rtree, rp) = split -1 root rp
+
+  display ltree rp
+  display rtree rp
+
+  (root, rp) = join empty root rp
+  debug root rp
+  
+  (root, rp) = join root empty rp
+  debug root rp
+  
+  rp = append 'a' rp
+  rp = append 'b' rp
+  rp = append 'c' rp
+  (node, rp) = done rp
+
+  (root, rp) = join root node rp
+  debug root rp
+
+  display root rp
+  
+  (ltree, rtree, rp) = split 0 root rp
+  println "---"
+  display ltree rp
+  display rtree rp
+  
+  (ltree, rtree, rp) = split 1 root rp
+  println "---"
+  display ltree rp
+  display rtree rp
+  
+  (ltree, rtree, rp) = split 2 root rp
+  println "---"
+  display ltree rp
+  display rtree rp
+  
+  (ltree, rtree, rp) = split 3 root rp
+  println "---"
+  display ltree rp
+  display rtree rp
+  
+  (ltree, rtree, rp) = split 99 root rp
+  println "---"
+  display ltree rp
+  display rtree rp
+  
+  (root, rp) = join node root rp
+  debug root rp
+  display root rp
+  
+  (ltree, rtree, rp) = split 0 root rp
+  println "---"
+  display ltree rp
+  display rtree rp
+  
+  (ltree, rtree, rp) = split 1 root rp
+  println "---"
+  display ltree rp
+  display rtree rp
+  
+  (ltree, rtree, rp) = split 2 root rp
+  println "---"
+  display ltree rp
+  display rtree rp
+  
+  (ltree, rtree, rp) = split 3 root rp
+  println "---"
+  display ltree rp
+  display rtree rp
+  
+  (ltree, rtree, rp) = split 4 root rp
+  println "---"
+  display ltree rp
+  display rtree rp
+  
+  (ltree, rtree, rp) = split 5 root rp
+  println "---"
+  display ltree rp
+  display rtree rp
+  
+  (ltree, rtree, rp) = split 6 root rp
+  println "---"
+  display ltree rp
+  display rtree rp
+  
+  (ltree, rtree, rp) = split 7 root rp
+  println "---"
+  display ltree rp
+  display rtree rp
+
+  rp = append 'd' rp
+  rp = append 'e' rp
+  (node, rp) = done rp
+
+  (root, rp) = join node root rp
+  debug root rp
+  display root rp
+
+  (root, rp) = join root node rp
+  debug root rp
+  display root rp
+
+  (nd, (root, rp)) = cut 1 3 root rp
+  display nd rp
+  display root rp
+
+  (root, rp) = insert 5 nd root rp
+  display root rp
+
+  ()
+

@@ -1,0 +1,143 @@
+;; BAL: try all test suite with fastMath enabled
+
+qualifier Prelude = "examples/prelude.fort"
+
+type Body = Record
+  x: Double
+  y: Double
+  z: Double
+  vx: Double
+  vy: Double
+  vz: Double
+  mass: Double
+
+type Bodies = Array 5 Body
+
+pi : `Double` = 3.141592653589793
+
+solar-mass = (4.0 * pi) * pi
+days-per-year = 365.24
+
+init-bodies = array
+  sun
+  jupiter
+  saturn
+  uranus
+  neptune
+
+sun = record
+  x = 0.0
+  y = 0.0
+  z = 0.0
+  vx = 0.0
+  vy = 0.0
+  vz = 0.0
+  mass = solar-mass
+
+jupiter = record
+  x = 4.84143144246472090e0
+  y = -1.16032004402742839e0
+  z = -1.03622044471123109e-01
+  vx = 1.66007664274403694e-03 * days-per-year
+  vy = 7.69901118419740425e-03 * days-per-year
+  vz = -6.90460016972063023e-05 * days-per-year
+  mass = 9.54791938424326609e-04 * solar-mass
+
+saturn = record
+  x = 8.34336671824457987
+  y = 4.12479856412430479
+  z = -4.03523417114321381e-01
+  vx = -2.76742510726862411e-03 * days-per-year
+  vy = 4.99852801234917238e-03 * days-per-year
+  vz = 2.30417297573763929e-05 * days-per-year
+  mass = 2.85885980666130812e-04 * solar-mass
+
+uranus = record
+  x = 1.28943695621391310e1
+  y = -1.51111514016986312e1
+  z = -2.23307578892655734e-01
+  vx = 2.96460137564761618e-03 * days-per-year
+  vy = 2.37847173959480950e-03 * days-per-year
+  vz = -2.96589568540237556e-05 * days-per-year
+  mass = 4.36624404335156298e-05 * solar-mass
+
+neptune = record
+  x = 1.53796971148509165e1
+  y = -2.59193146099879641e1
+  z = 1.79258772950371181e-01
+  vx = 2.68067772490389322e-03 * days-per-year
+  vy = 1.62824170038242295e-03 * days-per-year
+  vz = -9.51592254519715870e-05 * days-per-year
+  mass = 5.15138902046611451e-05 * solar-mass
+
+sqr = \x -> x * x
+
+main = do
+  n = if
+    argc > 1 -> atoi(@(argv # 1))
+    otherwise -> 1000
+
+  bodies = alloca `Bodies`
+  bodies := init-bodies
+
+  println $ energy bodies
+  offset-momentum bodies
+  println $ energy bodies
+  advance-n bodies 0.01 n
+  println $ energy bodies
+
+energy = \bodies -> do
+  repeat-accum (countof bodies) 0.0 $ \i e -> do
+    body = @(bodies # i)
+    temp = sqr body.vx + sqr body.vy + sqr body.vz
+    repeat-accum-from (i + 1) (countof bodies) (e + 0.5 * body.mass * temp) $ \j e -> do
+      body2 = @(bodies # j)
+      dx = body.x - body2.x
+      dy = body.y - body2.y
+      dz = body.z - body2.z
+      distance = sqrt (sqr dx + sqr dy + sqr dz)
+      e - (body.mass * body2.mass) / distance
+
+advance-n = \bodies dt n -> do
+  repeat n $ \_ -> do
+    advance bodies dt
+
+advance = \bodies dt -> do
+  repeat (countof bodies) $ \i -> do
+    body = bodies # i
+    repeat-from (i + 1) (countof bodies) $ \j -> do
+      body2 = bodies # j
+      dx = @body.x - @body2.x
+      dy = @body.y - @body2.y
+      dz = @body.z - @body2.z
+      distanced = sqr dx + sqr dy + sqr dz
+      distance = sqrt distanced
+      mag = dt / (distanced * distance)
+      mmag = @body.mass * mag
+      mmag2 = @body2.mass * mag
+      body.vx -= dx * mmag2
+      body.vy -= dy * mmag2
+      body.vz -= dz * mmag2
+      body2.vx += dx * mmag
+      body2.vy += dy * mmag
+      body2.vz += dz * mmag
+
+  repeat (countof bodies) $ \i -> do
+    body = bodies # i
+    body.x += dt * @body.vx
+    body.y += dt * @body.vy
+    body.z += dt * @body.vz
+
+offset-momentum = \bodies -> do
+  (px, py, pz) = repeat-accum (countof bodies) (0.0, 0.0, 0.0) $ \i (px, py, pz) -> do
+    body = @(bodies # i)
+    m = body.mass
+    (px + body.vx * m, py + body.vy * m, pz + body.vz * m)
+
+  f = \a -> negate (a / solar-mass)
+  body0 = bodies # 0
+  body0.vx := f px
+  body0.vy := f py
+  body0.vz := f pz
+    
+      

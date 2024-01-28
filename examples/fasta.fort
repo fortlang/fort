@@ -1,0 +1,180 @@
+qualifier Prelude = "examples/prelude.fort"
+
+alu =
+  "GGCCGGGCGCGGTGGCTCACGCCTGTAATCCCAGCACTTTGGGAGGCCGAGGCGGGCGGATCACCTGAGGTCAGGAGTTCGAGACCAGCCTGGCCAACATGGTGAAACCCCGTCTCTACTAAAAATACAAAAATTAGCCGGGCGTGGTGGCGCGCGCCTGTAATCCCAGCTACTCGGGAGGCTGAGGCAGGAGAATCGCTTGAACCCGGGAGGCGGAGGTTGCAGTGAGCCGAGATCGCGCCACTGCACTCCAGCCTGGGCGACAGAGCGAGACTCCGTCTCAAAAA"
+
+main = do
+  n = if
+    argc > 1 -> atoi @(argv # 1)
+    otherwise -> 1000
+
+  iub = alloca `Array 15 AminoAcid`
+  iub := init-iub
+
+  homosapiens = alloca `Array 4 AminoAcid`
+  homosapiens := init-homosapiens
+ 
+  make-cumulative iub
+  ;; print iub
+  make-cumulative homosapiens
+
+  ;; print homosapiens
+
+  make-repeat-fasta "ONE" "Homo sapiens alu" alu (n * 2)
+  rnd = make-random-fasta "TWO" "IUB ambiguity codes" iub (n * 3) rnd0
+  void $ make-random-fasta "THREE" "Homo sapiens frequency" homosapiens (n * 5) rnd
+
+type LineBuf = Array 61 Char
+
+make-cumulative = \gene-list -> do
+  void $ repeat-accum (countof gene-list) 0.0 $ \i cp0 -> do
+    gene = gene-list # i
+    cp = cp0 + @gene.p
+    gene.p := cp
+    cp
+
+make-repeat-fasta = \id desc s n -> do
+  print ">"
+  print id
+  print " "
+  println desc
+
+  lb = snd $ repeat-accum n (init-ring-buf s, init-line-buf) $ \_ (rb, lb) -> do
+    (c, rb) = load-ring-buf rb
+    (rb, push-line-buf lb c)
+
+  flush-line-buf lb
+
+make-random-fasta = \id desc gene-list n rnd -> do
+  print '>'
+  print id
+  print ' '
+  println desc
+  (lb, rnd) = repeat-accum n (init-line-buf, rnd) $ \_ (lb, rnd) -> do
+    (c, rnd) = select-random gene-list rnd
+    (push-line-buf lb c, rnd)
+  flush-line-buf lb
+  rnd
+
+type Rnd = I 64
+
+rnd0 = cast 42 `Rnd`
+im = cast 139968 `Rnd`
+ia = cast 3877 `Rnd`
+ic = cast 29573 `Rnd`
+
+gen-random = \rnd -> do
+  rnd = (rnd * ia + ic) % im
+  (rnd, cast rnd `Double` / cast im `Double`)
+
+select-random = \gene-list rnd -> do
+  (rnd, r) = gen-random rnd
+  gene0 = @(gene-list # 0)
+  c = if
+    r < gene0.p -> gene0.c
+    otherwise -> do
+      hi = loop (0, countof gene-list - 1) $ \(lo, hi) -> if
+        hi <= lo + 1 -> Done hi
+	otherwise -> do
+	  i = (hi + lo) / 2
+	  if
+	    r < @(gene-list # i).p -> Continue (lo, i)
+	    otherwise -> Continue (i, hi)
+      @(gene-list # hi).c
+  (c, rnd)
+
+type AminoAcid = Record
+  c: Char
+  p: Double
+
+init-iub = array
+  record
+    c = 'a'
+    p = 0.27
+  record
+    c = 'c'
+    p = 0.12
+  record
+    c = 'g'
+    p = 0.12
+  record
+    c = 't'
+    p = 0.27
+  record
+    c = 'B'
+    p = 0.02
+  record
+    c = 'D'
+    p = 0.02
+  record
+    c = 'H'
+    p = 0.02
+  record
+    c = 'K'
+    p = 0.02
+  record
+    c = 'M'
+    p = 0.02
+  record
+    c = 'N'
+    p = 0.02
+  record
+    c = 'R'
+    p = 0.02
+  record
+    c = 'S'
+    p = 0.02
+  record
+    c = 'V'
+    p = 0.02
+  record
+    c = 'W'
+    p = 0.02
+  record
+    c = 'Y'
+    p = 0.02
+
+init-homosapiens = array
+  record
+    c = 'a'
+    p = 0.3029549426680
+  record
+    c = 'c'
+    p = 0.1979883004921
+  record
+    c = 'g'
+    p = 0.1975473066391
+  record
+    c = 't'
+    p = 0.3015094502008
+
+init-ring-buf = \s -> record
+  idx = 0
+  arr = cast s `Pointer (Array 287 Char)` ;; BAL: shouldn't have to cast to read from constant string
+
+load-ring-buf = \rb -> (@(rb.arr # rb.idx), rb with { idx = (rb.idx + 1) % countof rb.arr })
+
+init-line-buf = do
+  a = alloca `LineBuf`
+  a # (countof a - 1) := '\0'
+  record
+    arr = a
+    idx = 0
+
+puts-line-buf = \lb -> void $ puts lb.arr
+
+push-line-buf = \lb c -> do
+  lb.arr # lb.idx := c
+  if
+    lb.idx == countof lb.arr - 2 -> do
+      puts-line-buf lb
+      lb with idx = 0
+    otherwise -> lb with idx = lb.idx + 1
+
+flush-line-buf = \lb -> if
+  lb.idx == 0 -> ()
+  otherwise -> do
+    lb.arr # lb.idx := '\0'
+    puts-line-buf lb
+
+

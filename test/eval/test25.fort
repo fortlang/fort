@@ -1,0 +1,13 @@
+main = println (foo (bar 3))
+
+foo = \~x -> Prim.add (printlnAndRet x, printlnAndRet x)
+
+bar = \x -> Prim.mul (printlnAndRet x, printlnAndRet x)
+
+println = \x -> do
+  Prim.print x
+  Prim.print '\n'
+
+printlnAndRet = \x -> do
+  println x
+  x

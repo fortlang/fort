@@ -1,0 +1,9 @@
+type T = Sum
+  Just: Char
+
+type Char = C 8
+
+main = do
+  p = Prim.alloca `T`
+  Prim.store (p, Just)
+

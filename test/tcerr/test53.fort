@@ -1,0 +1,3 @@
+main = do
+  p = Prim.alloca `Array 3 String`
+  Prim.index (p, 1.2)

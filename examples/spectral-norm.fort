@@ -1,0 +1,63 @@
+qualifier Prelude = "examples/prelude.fort"
+
+eval-a = \i j -> 1.0 / cast ((i + j) * (i + j + 1) / 2 + i + 1) `Double`
+
+eval-a-times-u = \n u au -> do
+  repeat n $ \i -> do
+    au # i := 0.0
+    repeat n $ \j -> do
+      au # i += eval-a i j * @(u # j)
+
+eval-at-times-u = \n u au -> do
+  repeat n $ \i -> do
+    au # i := 0.0
+    repeat n $ \j -> do
+      au # i += eval-a j i * @(u # j)
+
+eval-ata-times-u = \n u atAu -> do
+  eval-a-times-u n u vvArr
+  eval-at-times-u n vvArr atAu
+
+replicate = \n x arr -> repeat n $ \i -> arr#i := x
+
+type Arr = Array 5500 Double
+
+vArr = alloca `Arr`
+uArr = alloca `Arr`
+vvArr = alloca `Arr`
+
+debug = \_msg _x -> ()
+;; debug = \msg x -> do
+;;   print msg
+;;   print ' '
+;;   println x
+
+main = do
+  n = if
+    argc > 1 -> atoi @(argv # 1)
+    otherwise -> 2000
+
+  replicate n 1.0 uArr
+
+  repeat 10 $ \i -> do
+    eval-ata-times-u n uArr vArr
+    eval-ata-times-u n vArr uArr
+
+  (vBv, vv) = repeat-accum n (0.0, 0.0) $ \i (vBv, vv) -> do
+    ui = @(uArr # i)
+    vi = @(vArr # i)
+    debug "vBv" vBv
+    debug "vv" vv
+    debug "ui" ui
+    debug "vi" vi
+    (vBv + ui * vi, vv + vi * vi)
+
+  println vBv
+  println vv
+
+  println $ sqrt (vBv / vv)
+
+;; command line:
+;; ./spectral-norm.fort.ll.exe 5500
+;; output:
+;; 1.274224153

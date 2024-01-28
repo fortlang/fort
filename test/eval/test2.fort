@@ -1,0 +1,33 @@
+
+println = \a -> do
+  print a
+  print "\n"
+
+main = do
+  println 42
+  println -42
+  println 'a'
+  println "hello, world"
+  println 3.14
+  println -3.14
+  println True
+  println False
+  println 0xff
+  println 0o77
+  println 0b11
+  println (4, 2)
+  println { foo = 4, bar = 2, baz = ([[1,2], [3,4]], 'c') }
+  println [1,2,3]
+  println (Just (Just "hello"))
+  println Red
+  println ()
+  z = if
+    False -> Left "hello"
+    False -> Left "goodbye"
+    True -> Right 'c'
+  print z
+  0
+
+test = True
+
+print = Prim.print

@@ -1,0 +1,6 @@
+type T = \sz => Array sz (C 8)
+type TT = \sz => Array sz (T [4, sz])
+
+main = do
+  p = Prim.alloca `TT [2,3]`
+  0

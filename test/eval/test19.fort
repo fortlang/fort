@@ -1,0 +1,11 @@
+main = do
+  println z where
+    z = 1.2
+  println a
+  0
+ where a = True
+
+println = \x -> do
+  Prim.print x
+  Prim.print '\n'
+

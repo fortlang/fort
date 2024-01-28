@@ -1,0 +1,7 @@
+divide = \a b -> Prim.div (a, b)
+
+operator / = divide infixl 7.0
+
+main = do
+  Prim.print (22 / 0xff)
+

@@ -1,0 +1,3 @@
+qualifier Prelude = "examples/prelude.fort"
+
+main = println "hello, world!"

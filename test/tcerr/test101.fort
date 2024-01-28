@@ -1,0 +1,1 @@
+main = Prim.print (Prim.cast (0.2, `F 143`))

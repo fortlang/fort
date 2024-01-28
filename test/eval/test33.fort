@@ -1,0 +1,35 @@
+operator + = add infixl 6.0
+add = curry Prim.add
+
+operator $ = apply infixr 0.0
+apply = \f ~a -> f a
+
+print = Prim.print
+
+curry = \f x y -> f (x, y)
+
+println = \a -> do
+  print a
+  print '\n'
+
+loop = \a0 ~f -> do
+  tailrec
+    go = \a -> case f a of
+      Continue a' -> go a'
+      Done b -> b
+  go a0
+
+cast = curry Prim.cast
+
+main = do
+  loop 0 $ \i -> case i of
+    5 -> Done ()
+    _ -> do
+      println i
+      Continue (i + 1)
+  loop 'a' $ \c -> case c of
+    'd' -> Done ()
+    _ -> do
+      println c
+      Continue (c + cast 1 `C 8`)
+

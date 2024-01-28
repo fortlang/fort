@@ -1,0 +1,5 @@
+add = \a b -> Prim.add (a, b)
+operator + = add infixl 6.0
+
+main = do
+  Prim.print ('a' + 2.2)

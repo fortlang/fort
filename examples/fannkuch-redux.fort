@@ -1,0 +1,131 @@
+qualifier Prelude = "examples/prelude.fort"
+
+type Perm = Array 12 Int
+
+main = do
+  n = if
+    argc > 1 -> atoi (@(argv # 1))
+    otherwise -> 7
+  (checksum, max-flips-count) = fannkuchredux n  
+  println checksum
+  print "Pfannkuchen("
+  print n
+  print ") = "
+  println max-flips-count
+
+debug = \arr -> do
+  repeat (countof arr) $ \i -> do
+    println @(arr#i)
+
+tmp = alloca `Perm`
+count = alloca `Perm`
+perm = alloca `Perm`
+
+init-linear = \arr n -> repeat n $ \i -> arr # i := i + 1
+
+update-count = \r -> do
+  loop r $ \r -> if
+    r != 1 -> do
+      r' = r - 1
+      count # r' := r
+      Continue r'
+    otherwise -> Done r
+
+;; BAL: use memcpy?
+copy = \n a b -> repeat n $ \i -> a # i := @(b # i)
+
+next-perm = \arr r n -> do
+  loop r $ \r -> if
+    r == n -> Done NoPerm
+    otherwise -> do
+      rotate-at-r arr r
+      count # r := @(count # r) - 1
+      if
+        @(count # r) > 0 -> Done (NextPerm r)
+        otherwise -> Continue (r + 1)
+
+fannkuchredux = \n -> do
+  init-linear perm n
+ 
+  loop (n, 0, 0, 0) $ \(r, perm-count, max-flips-count, checksum) -> do
+    r = update-count r
+    copy n tmp perm
+    num-flips = do-flips tmp
+    max-flips-count = max max-flips-count num-flips
+    checksum = calc-checksum checksum num-flips perm-count
+    case next-perm perm r n of
+      NoPerm -> Done (checksum, max-flips-count)
+      NextPerm r -> Continue (r, perm-count + 1, max-flips-count, checksum)
+
+is-odd = \i -> cast i `Bool`
+
+calc-checksum = \csum n-flips perm-count -> if
+  is-odd perm-count -> csum - n-flips
+  otherwise -> csum + n-flips
+
+;; ;; BAL: use memcpy(?)
+;; init-copy = \a b -> repeat (countof a) $ \i -> a # i := @(b # i)
+;;
+;;
+;; permutations = \n -> do
+;;   init-linear perm
+;;
+;;   loop (n, 0, 0, 0) $ \(r0, idx, mx0, csum0) -> do
+;;     nflips = num-flips perm
+;;     mx = max mx0 nflips
+;;     csum = calc-checksum csum0 nflips idx
+;;     updateCounts r0
+;;     r = computeNextPerm 1
+;;     if
+;;        r < n -> Continue (r, idx + 1, mx, csum)
+;;        otherwise -> do
+;;          println csum
+;;          Done mx
+;;  where
+;;    updateCounts = \r0 -> do
+;;      loop r0 $ \r0 -> if
+;;        r0 > 1 -> do
+;;          r = r0 - 1
+;;          count # r := r0
+;;          Continue r
+;;        otherwise -> Done ()
+;;
+;;    computeNextPerm = \r -> do
+;;      loop r $ \r -> do
+;;        rotateSubPerm r
+;;        count # r -= 1
+;;        if
+;;          @(count # r) > 0 -> Done r
+;;          otherwise -> Continue (r + 1)
+;;
+;;    rotateSubPerm = \r -> do
+;;      perm0 = @(perm # 0)
+;;      repeat r $ \i -> perm # i := @(perm # (i + 1))
+;;      perm # r := perm0
+;;
+
+rotate-at-r = \arr r -> do
+  x0 = @(arr # 0)
+  repeat r $ \i -> arr # i := @(arr # (i + 1))
+  arr # r := x0
+
+do-flips = \arr -> do
+  loop 0 $ \n -> case @(arr # 0) of
+    1 -> Done n
+    i -> do
+      reverse-n i arr
+      Continue (n + 1)
+
+reverse-n = \n arr -> do
+  loop (0, n - 1) $ \(l, r) -> if
+    l >= r -> Done ()
+    otherwise -> do
+      swap (arr # l) (arr # r)
+      Continue (l + 1, r - 1)
+
+swap = \p q -> do
+  temp = @p
+  p := @q
+  q := temp
+
+test-perm = [4, 2, 1, 5, 3, 0, 0, 0, 0, 0, 0, 0]

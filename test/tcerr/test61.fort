@@ -1,0 +1,1 @@
+main = Prim.eq (Just 'a', Just 23)

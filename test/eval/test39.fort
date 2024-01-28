@@ -1,0 +1,23 @@
+type Int = I 32
+
+foo = \i -> i + 1
+
+operator + = add infixl 6.0
+add = curry Prim.add
+print = Prim.print
+
+println = \a -> do
+  print a
+  print '\n'
+
+curry = \f x y -> f (x, y)
+
+export "inc" = foo `Int -> Int`
+
+bar = extern "inc" `Int -> Int`
+
+argcp = extern "FORT_argc" `Pointer Int`
+
+main = do
+  println (Prim.load argcp)
+  println (bar 3)

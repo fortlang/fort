@@ -1,0 +1,4 @@
+qualifier Foo = "test/multierr/test1.fort.1"
+qualifier Bar = "test/multierr/test1.fort.2"
+
+main = foo 7

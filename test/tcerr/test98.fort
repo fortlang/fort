@@ -1,0 +1,4 @@
+main = do
+  p = Prim.alloca `C 8`
+  Prim.memset (p, ' ', Prim.cast (8, `I 8`))
+

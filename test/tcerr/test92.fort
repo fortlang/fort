@@ -1,0 +1,2 @@
+foo = \~x -> x
+export "bar" = foo `I 32 -> I 32`

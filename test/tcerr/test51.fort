@@ -1,0 +1,1 @@
+main = Prim.cast (1, `Array 16 (F 16)`)

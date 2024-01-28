@@ -1,0 +1,63 @@
+type Int = I 32
+type Double = F 64
+type Char = C 8
+
+operator @ = load
+operator := = store infix -1.0
+operator # = index infixl 9.0
+
+load = Prim.load
+print = Prim.print
+
+println = \x -> do
+  print x
+  print '\n'
+
+store = \ptr a -> Prim.store (ptr, a)
+alloca = Prim.alloca
+index = \ptr n -> Prim.index (ptr, n)
+
+type T = Record
+  foo: Array 5 Double
+  bar: Char
+
+main = do
+  ;; p = alloca `Array 3 Int`
+  ;; p#0 := 42
+  ;; x = @(p#0)
+  ;; println x
+
+  p = alloca `Array [3, 2] Double`
+  p#2#1 := 4.2
+  ;; x = @(p#2#1)
+  ;; println x
+  ;;
+  ;; p#0#0 := 0.1
+  ;; x = @(p#0#0)
+  ;; println x
+
+  ;; p = alloca `Array [3, 2] (Int, (Double, Char))`
+  ;; p#2#1 := (2, (2.22, 'c'))
+  ;; println @(p#2#1)
+  ;;
+  ;; p = alloca `Array [3, 2] Record { foo: Array 5 Double; bar: Char }`
+  ;; d = p.foo # 2 # 1
+  ;; d#1 := 99.9
+  ;; println @(d#1)
+  ;;
+  ;; (a, (b, c)) = alloca `Array [3, 2] (Array 5 Double, (Double, Array 2 Char))`
+  ;;
+  ;; a#2#1#2 := 5.5
+  ;; da = @(a#2#1#2)
+  ;; println da
+  ;;
+  ;; b#2#1 := 11.1
+  ;; bb = @(b#2#1)
+  ;; println bb
+  ;;
+  ;; c#1#1#1 := 'A'
+  ;; cc = @(c#1#1#1)
+  ;; println cc
+
+  0
+

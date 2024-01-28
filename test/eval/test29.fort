@@ -1,0 +1,5 @@
+fort-print-bool = extern "FORT_print_Bool" `I 32 -> ()`
+
+main = do
+  fort-print-bool 1
+  Prim.print '\n'

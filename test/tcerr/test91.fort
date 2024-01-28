@@ -1,0 +1,2 @@
+export "foo" = bar `Pointer String`
+bar = Prim.alloca "asdf"

@@ -1,0 +1,5 @@
+qualifier Foo = "test/tcerr/test0.fort"
+qualifier Foo = "test/tcerr/test1.fort"
+
+main = ()
+

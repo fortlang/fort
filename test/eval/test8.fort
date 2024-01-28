@@ -1,0 +1,8 @@
+negate = Prim.neg
+println = \x -> do
+  Prim.print x
+  Prim.print '\n'
+
+main = do
+  println (negate 3)
+  println (negate 3.0)

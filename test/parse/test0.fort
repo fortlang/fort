@@ -1,0 +1,39 @@
+int = +21
+doublE = -21.1e12
+char = 'a'
+_string = "hello, world"
+
+uint = 21
+he-x = 0xf1
+bin' = 0b10
+oc't = 0o7
+
+record_ = { fld = 5 }
+
+type T = Sum
+  Con: T1
+  Enum
+
+type T = Record
+  fld: T1
+
+type T = Array 4 Int
+type T = \sz t => Array sz t
+type T = T1 -> T2 -> T3
+type T = T1 -> (T2 -> T3)
+type T = (T1 -> T2) -> T3
+type T = T1 T2 T3
+type T = (T1, T2, T3)
+type T = ()
+type T = (T1)
+type T = Pointer T1
+type T = Array [3, 5, 3] Int
+type T = Index (Array 3 Int)
+type T = String
+type T = U 32
+type T = I 64
+type T = C 8
+type T = F 64
+type T = T1
+type T = My.T1
+

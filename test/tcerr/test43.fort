@@ -1,0 +1,1 @@
+main = Prim.cast (3, `F 64 -> ()`)

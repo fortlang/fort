@@ -1,0 +1,254 @@
+type MChar = Sum
+  Just: Char
+  Nothing
+
+type Char = C 8
+
+main = do
+  println "\nTest: Array x Reg"
+  p = alloca `Array 2 Bool`
+  println p
+  p#0 := False
+  p#1 := True
+  println @(p#0)
+  println @(p#1)
+
+  arr = [True, False]
+  println arr
+  p := arr
+  println @(p#0)
+  println @(p#1)
+
+  println "\nTest: Array x Sum"
+  p = alloca `Array 2 Sum{ Nothing; Just: Char }`
+  println p
+
+  p#0 := Nothing
+  println @(p#0)
+  p#1 := Just 'a'
+  println @(p#1)
+
+  arr = [Just 'c', Nothing]
+  println arr
+  p := arr
+  println @(p#0)
+  println @(p#1)
+
+  case @(p#0) of
+    Just c -> do
+      println "Just"
+      println c
+
+  case @(p#1) of
+    Nothing -> println "Nothing"
+
+  println "\nTest: Array x Tuple"
+  p = alloca `Array 2 (Char, String)`
+  println p
+
+  p#0 := ('a', "hello")
+  println @(p#0)
+  p#1 := ('b', "goodbye")
+  println @(p#1)
+ 
+  (pa, pb) = p#0
+  pa := 'A'
+  pb := "HELLO"
+  println @(p#0)
+
+  (pa, pb) = p#1
+  pa := 'B'
+  pb := "GOODBYE"
+  println @(p#1)
+
+  arr = [('y', "some"),('z', "stuff")]
+  println arr
+  p := arr
+  println @(p#0)
+  println @(p#1)
+
+  println "\nTest: Array x Record"
+  p = alloca `Array 2 Record { fld1: Char; fld2: String }`
+
+  (p#0).fld1 := 'a'
+  (p#0).fld2 := "hello"
+  (p#1).fld1 := 'b'
+  (p#1).fld2 := "world"
+  
+  println @(p#0)
+  println @(p#1)
+  println @(p#0).fld1
+  println @(p#0).fld2
+  println @(p#1).fld1
+  println @(p#1).fld2
+
+  p#0 := { fld1 = 'Y', fld2 = "HELLO" }
+  p#1 := { fld1 = 'Z', fld2 = "WORLD" }
+  println @(p#0)
+  println @(p#1)
+
+  arr = [{ fld1 = 'A', fld2 = "Hello" }, { fld2 = "Goodbye", fld1 = 'B' }]
+  println arr
+  p := arr
+  println @(p#0)
+  println @(p#1)
+
+  println "\nTest: Array x Array"
+  p = alloca `Array 2 (Array 2 Char)`
+  println p
+  arr = [['a', 'b'], ['c', 'd']]
+  println arr
+  p := arr
+  println @(p#0#0)
+  println @(p#0#1)
+  println @(p#1#0)
+  println @(p#1#1)
+
+  p#0 := ['x', 'y']
+  p#1 := ['X', 'Y']
+
+  println @(p#0#0)
+  println @(p#0#1)
+  println @(p#1#0)
+  println @(p#1#1)
+
+  println "\nTest: Sum x Array"
+  s = Just ['a', 'b']
+  println s
+
+  println "\nTest: Record x Array"
+  r = { x = ['a', 'b'] }
+  println r
+
+  println "\nTest: Tuple x Array"
+  t = (['a','b'], [True])
+  println t
+
+  println "\nTest: Array x Tuple x (Tuple x Record x Sum x Array)"
+
+  p = alloca `Array 2 ((Char, Int), Record{ x: Double }, MDouble, Array 2 Bool)`
+  println p
+
+  arr = array
+    (('a', 1), { x = 1.2 }, Just 1.2, [True, False])
+    (('b', 2), { x = 2.3 }, Nothing, [False, True])
+
+  println arr
+  p := arr
+  
+  (a, b, c, d) = @(p#0)
+  println a
+  println b
+  println c
+  println d
+  case c of
+    Just n -> do
+      println "Just"
+      println n
+  println @(d#0)
+  println @(d#1)
+  
+  (a, b, c, d) = p#1
+  println @a
+  println @b
+  println @c
+  case @c of
+    Nothing -> println "Nothing"
+  println @(d#0)
+  println @(d#1)
+ 
+  println "\nTest: Array x Record x (Tuple x Record x Sum x Array)"
+   
+  println "\nTest: Array x Sum x (Tuple x Record x Sum x Array)"
+  p = alloca `Array 6 TT`
+  println p
+
+  p#0 := ANothing
+  p#1 := ARecord{ x = 'A' }
+  p#2 := ASum (Just 88.88)
+  p#3 := ASum Nothing
+  p#4 := AArray [3 ,4]
+  ;; pp = alloca `Array 2 Int` ;; BAL:
+  ;; pp := [3, 4]
+  ;; p#4 := APtrArray pp
+  p#5 := ATuple (0, False)
+ 
+  println @(p#0)
+  println @(p#1)
+  println @(p#2)
+  println @(p#3)
+  println @(p#4)
+  println @(p#5)
+
+  case @(p#4) of
+    AArray aa -> do
+      println "AArray"
+      println (Prim.typeof aa)
+      println @(aa#0)
+      println @(aa#1)
+
+  arr = array
+    ATuple (1, True)
+    ARecord{ x = 'c' }
+    ASum Nothing
+    ASum (Just 1.2)
+    AArray [1,2]
+    ANothing
+  
+  println arr
+  p := arr
+
+  println @(p#0)
+  println @(p#1)
+  println @(p#2)
+  println @(p#3)
+  println @(p#4)
+  println @(p#5)
+  
+  case @(p#4) of
+    AArray q -> do
+      println "AArray"
+      println @(q#0)
+      println @(q#1)
+  
+  case @(p#5) of
+    ANothing -> do
+      println "ANothing"
+  
+  println "\nTest: Array x Array x (Tuple x Record x Sum x Array)"
+
+  ()
+
+type Int = I 32
+type Double = F 64
+type MDouble = Sum
+  Just: Double
+  Nothing
+
+type TT = Sum
+  ATuple: (Int, Bool)
+  ARecord: Record
+    x: Char
+  ASum: MDouble
+  AArray: Array 2 Int
+  ANothing
+  ;; BAL: APtrArray: Array 2 Int
+
+operator @ = load
+operator := = store infix -1.0
+operator # = index infixl 9.0
+
+print = Prim.print
+
+println = \x -> do
+  print x
+  print '\n'
+
+alloca = Prim.alloca
+
+curry = \f a b -> f (a, b)
+
+load = Prim.load
+store = curry Prim.store
+
+index = curry Prim.index

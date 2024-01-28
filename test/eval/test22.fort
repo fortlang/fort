@@ -1,0 +1,9 @@
+type T = \x => Record
+  x: x
+  y: Bool
+
+main = println `T (I 32)`
+
+println = \a -> do
+  Prim.print a
+  Prim.print '\n'

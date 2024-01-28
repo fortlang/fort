@@ -1,0 +1,2 @@
+main = Prim.eq ({ x = 24 }, { x = 'c' })
+

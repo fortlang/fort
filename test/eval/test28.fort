@@ -1,0 +1,26 @@
+tailrec
+  loop = \x -> do
+    (i, ()) = x
+    case i of
+      0 -> println ""
+      i -> do
+        print i
+ 	print ' '
+	loop (i - 1, ())
+
+operator - = subtract infixl 6.0
+equal = curry Prim.eq
+operator == = equal infix 4.0
+subtract = curry Prim.sub
+
+print = Prim.print
+println = \x -> do
+  print x
+  print '\n'
+
+curry = \f a b -> f (a, b)
+
+main = do
+  (v, ()) = (3, ())
+  loop (3, ())
+

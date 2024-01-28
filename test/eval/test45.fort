@@ -1,0 +1,15 @@
+println = \a -> do
+  Prim.print a
+  Prim.print '\n'
+
+main = do
+  println (Prim.abs -1.2)
+  println (Prim.sqrt 4.0)
+  println (Prim.sin 3.14)
+  println (Prim.cos 3.14)
+  println (Prim.ceil 3.14)
+  println (Prim.round 3.49)
+  println (Prim.round 3.5)
+  println (Prim.floor -3.14)
+  println (Prim.truncate -3.14)
+

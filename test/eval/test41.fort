@@ -1,0 +1,14 @@
+argcp = extern "FORT_argc" `Pointer Int`
+argvp = extern "FORT_argv" `Pointer (Pointer (Array 256 (Pointer Char)))`
+
+argc = Prim.load argcp
+argv = Prim.load argvp
+
+type Int = I 32
+type Char = C 8
+
+println = \a -> do
+  Prim.print a
+  Prim.print '\n'
+
+main = println argc

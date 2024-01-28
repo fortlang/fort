@@ -1,0 +1,75 @@
+main = do
+  println (2.1 + 2.2)
+  println (2.1 - 2.2)
+  println (1.0 + 2.1 * 2.2)
+  println (2.1 / 2.2)
+  println (2.1 % 2.2)
+  println (2.1 == 2.2)
+  println (2.1 != 2.2)
+  println (2.1 > 2.2)
+  println (2.1 < 2.2)
+  println (2.1 >= 2.2)
+  println (2.1 <= 2.2)
+
+  println (2 != 2)
+  println (2 > 2)
+  println (2 < 2)
+  println (2 >= 2)
+  println (2 <= 2)
+
+  println (0xf > 0xf)
+  println (0xf < 0xf)
+  println (0xf >= 0xf)
+  println (0xf <= 0xf)
+
+  println (2 * 2)
+  println (2 / 2)
+  println (2 % 2)
+
+  println (0b1 / 0b1)
+  println (0b1 % 0b1)
+
+println = \x -> do
+  Prim.print x
+  Prim.print '\n'
+
+operator == = equal infix 4.0
+operator != = not-equal infix 4.0
+
+operator > = greater-than infix 4.0
+operator < = less-than infix 4.0
+operator >= = greater-than-or-equal infix 4.0
+operator <= = less-than-or-equal infix 4.0
+
+operator * = multiply infixl 7.0
+operator / = divide infixl 7.0
+operator % = remainder infixl 7.0
+operator + = add infixl 6.0
+operator - = subtract infixl 6.0
+
+operator @ = load
+operator := = store infix -1.0
+operator # = index infixl 9.0
+
+curry = \f a b -> f (a, b)
+
+equal = curry Prim.eq
+not-equal = curry Prim.ne
+
+greater-than = curry Prim.gt
+less-than = curry Prim.lt
+greater-than-or-equal = curry Prim.gte
+less-than-or-equal = curry Prim.lte
+
+multiply = curry Prim.mul
+divide = curry Prim.div
+remainder = curry Prim.rem
+add = curry Prim.add
+subtract = curry Prim.sub
+
+load = Prim.load
+store = curry Prim.store
+
+index = curry Prim.index
+
+

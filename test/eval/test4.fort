@@ -1,0 +1,26 @@
+main = do
+  x = if
+    False -> Just 22.2
+    False -> Just 22.2
+    False -> Just 11.1
+    True -> Nothing
+  println x
+  y = Err 42
+  println y
+  z = if
+    False -> Left "hello"
+    False -> Left "goodbye"
+    True -> Right 'a'
+    True -> Just True
+    True -> Nothing
+    True -> Right 'c'
+  println z
+  0
+
+print = Prim.print
+println = \x -> do
+  print x
+  print '\n'
+
+
+

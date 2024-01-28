@@ -1,0 +1,6 @@
+type T = Sum
+  ATag
+
+main = do
+  p = Prim.alloca `T`
+  Prim.store (p, Blue)

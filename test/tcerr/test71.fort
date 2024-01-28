@@ -1,0 +1,6 @@
+type File = Opaque "FILE"
+
+fclose = extern "fclose" `Pointer File -> I 32`
+
+main = fclose 0
+

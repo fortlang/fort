@@ -1,0 +1,68 @@
+qualifier Prelude = "./examples/prelude.fort"
+
+init = \ty -> record
+  next = 0
+  buf = alloca ty
+
+push = \x st -> do
+  assert (st.next >= 0) StackUnderflow
+  assert (st.next < countof st.buf) StackOverflow
+  st.buf#st.next := x
+  st with next = st.next + 1
+
+pop = \st -> if
+  st.next > 0 -> do
+    i = st.next - 1
+    Ok (@(st.buf#i), st with { next = i })
+  otherwise -> ErrStackEmpty
+
+debug = \st -> do
+  print "stack["
+  loop 0 $ \i -> if
+    i < st.next -> do
+      print @(st.buf#i)
+      print ","
+      Continue $ i + 1
+    otherwise -> Done ()
+  println "]"
+
+test = do
+  sk = init `Array 3 Char`
+  debug sk
+
+  sk = push 'a' sk
+  debug sk
+
+  sk = push 'b' sk
+  debug sk
+
+  (c, sk) = from-ok $ pop sk
+  println c
+  debug sk
+
+  (c, sk) = from-ok $ pop sk
+  println c
+  debug sk
+
+  println $ pop sk
+
+  sk = init `Array 3 AMaybe`
+  debug sk
+  sk = push Nothing sk
+  debug sk
+  sk = push (Just 'a') sk
+  debug sk
+
+  (mc, sk) = from-ok $ pop sk
+  debug sk
+
+  (mc, sk) = from-ok $ pop sk
+  debug sk
+
+  println $ pop sk
+
+  ()
+
+type AMaybe = Sum
+  Nothing
+  Just:  Char

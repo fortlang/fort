@@ -1,0 +1,23 @@
+print = Prim.print
+
+println = \x -> do
+  print x
+  print "\n"
+
+main = do
+  println "hello, world"
+  println 42
+  println 'c'
+  println 4.2
+  println (0xff, (0b11, 0o77))
+  println (record { foo = True; bar = False })
+  println record
+    foo = 'c'
+  println [[0,1],[2,3]]
+  println Foo
+  println (Bar 12)
+  a = if
+    False -> Wibble "hello"
+    True -> Baz 'c'
+    False -> Foo
+  println a

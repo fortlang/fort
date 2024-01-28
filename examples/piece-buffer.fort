@@ -1,0 +1,98 @@
+qualifier Prelude = "./examples/prelude.fort"
+
+type Piece = Record
+    offset: Int
+    length: Int
+
+init = \ty -> record
+  start = 0
+  next = 0
+  buf = alloca ty
+
+append = \x st -> do
+  assert (st.next >= 0) PieceBufferUnderflow
+  assert (st.next < countof st.buf) PieceBufferOverflow
+  st.buf#st.next := x
+  st with next = st.next + 1
+
+backspace = \st -> if
+  st.next > st.start -> Ok $ st with next = st.next - 1
+  otherwise -> ErrEmpty
+
+done = \st ->
+  (record
+     offset = st.start
+     length = st.next - st.start
+  , st with start = st.next
+  )
+
+display = \x st -> do
+  limit = x.offset + x.length
+  loop x.offset $ \i -> if
+    i < limit -> do
+      print @(st.buf#i)
+      Continue $ i + 1
+    otherwise -> Done ()
+
+debug-piece = \x st -> do
+  print "piece["
+  limit = x.offset + x.length
+
+  loop x.offset $ \i -> if
+    i < limit -> do
+      print @(st.buf#i)
+      print ","
+      Continue $ i + 1
+    otherwise -> Done ()
+
+  println "]"
+
+dbg-pieces = \st start stop -> do
+  loop start $ \i -> if
+    i < stop -> do
+      print @(st.buf#i)
+      print ","
+      Continue $ i + 1
+    otherwise -> Done ()
+
+debug = \st -> do
+  print "piece-buffer["
+  dbg-pieces st 0 st.start
+  print ":"
+  dbg-pieces st st.start st.next
+  println "]"
+
+test = do
+  pb = init `Array 16 Char`
+  debug pb
+
+  pb = append 'a' pb
+  debug pb
+
+  pb = append 'b' pb
+  debug pb
+
+  pb = append 'd' pb
+  debug pb
+
+  pb = from-ok $ backspace pb
+  debug pb
+
+  pb = append 'c' pb
+  debug pb
+
+  (piece, pb) = done pb
+  debug pb
+
+  println $ backspace pb
+
+  pb = append 'd' pb
+  debug pb
+
+  pb = append 'e' pb
+  debug pb
+
+  (piece, pb) = done pb
+  debug pb
+
+  println $ backspace pb
