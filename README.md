@@ -12,7 +12,7 @@ Type checking/inference:
   Fort is strongly typed at compile time with full type inference.  Type annotations are provided as machine checked documentation for the user but are never required and have no effect on program semantics.  No run-time typing information is retained after compilation.  Values must be explicitly converted by the user (i.e. no implicit casts).
 
 Syntax:
-  Fort syntax resembles a simplified Haskell 'do' syntax.  Instead of functions, fort provides lambdas which are fully evaluated at compile time.  This step essentially 'inlines' all of the code in a fort application.  Fort enables parametric and ad-hoc polymorphism via this inlining.  Fort provides facilities to mitigate the potential code expansion caused by inlining.
+  Fort syntax resembles a simplified Haskell 'do' syntax.  Instead of functions, fort provides lambdas which are fully evaluated at compile time.  This step essentially 'inlines' all of the code in a fort application.  This inlining can lead to better optimization and it enables the parametric and ad-hoc polymorphism provided by fort.  Unfortunately this inlining has the potential to bloat the generated code so facilities are provided to mitigate this.  The full fort syntax can be seen here: fort-syntax.md (https://github.com/fortlang/fort/blob/main/doc/fort-syntax.md)
 
 Data structures:
   Fort supports the following primitive datatypes:  Signed/unsigned integer, floating point, bool, character, immutable string, pointer, opaque types, unit (similar to void in C/LLVM).  The number of bits used by a given numeric type can be specified by the user.
