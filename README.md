@@ -12,7 +12,7 @@ Type checking/inference:
   Fort is strongly typed at compile time with full type inference.  Type annotations are provided as machine checked documentation for the user but are never required and have no effect on program semantics.  No run-time typing information is retained after compilation.  Values must be explicitly converted by the user (i.e. no implicit casts).
 
 Syntax:
-  Fort syntax resembles a simplified Haskell 'do' syntax.  Instead of functions, fort provides lambdas which are fully evaluated at compile time.  This step essentially 'inlines' all of the code in a fort application.  This inlining can lead to better optimization and it enables the parametric and ad-hoc polymorphism provided by fort.  Unfortunately this inlining has the potential to bloat the generated code so facilities are provided to mitigate this.  The full fort syntax can be seen here: fort-syntax.md (https://github.com/fortlang/fort/blob/main/doc/fort-syntax.md)
+  Fort syntax resembles a simplified Haskell 'do' syntax.  Instead of functions, fort provides lambdas which are fully evaluated at compile time.  This step essentially 'inlines' all of the code in a fort application.  This inlining can lead to better optimization and it enables the parametric and ad-hoc polymorphism provided by fort.  Unfortunately this inlining has the potential to bloat the generated code so facilities are provided to mitigate this.  The full fort syntax can be seen here: [fort-syntax.md] (https://github.com/fortlang/fort/blob/main/doc/fort-syntax.md)
 
 Data structures:
   Fort supports the following primitive data types:  Signed/unsigned integer, floating point, bool, character, immutable string, pointer, opaque types, unit (similar to void in C/LLVM).  The number of bits used by a given numeric type can be specified by the user.
@@ -30,11 +30,12 @@ Integration with C:
   Fort code can be called from and call out to C code/libraries.  The current backend generates LLVM code with plans for future versions to generate C (as well as other backends).
 
 Building:
-  The fort compiler is implemented in haskell (https://www.haskell.org).  I use ghcup (https://www.haskell.org/ghcup) to track/install the recommended versions of ghc (haskell compiler) and cabal (haskell package manager).
+  The fort compiler is implemented in [haskell] (https://www.haskell.org).  I use [ghcup] (https://www.haskell.org/ghcup) to track/install the recommended versions of ghc (haskell compiler) and cabal (haskell package manager).
 
   The fort backend currently produces LLVM code and uses the LLVM code/compiler to build the resultant binary.
 
   My build uses the following dependencies on osx:
+
     * cabal 3.10.2.1
     * ghc 9.4.8
     * llvm 17.0.6
@@ -56,23 +57,25 @@ Building:
 
 Warning:
 
-  Fort is still in the early stages of development.  The core functionality is there, including:
-    - LLVM code generation for all fort syntax
-    - interfacing to/from C
-    - separate modules
-    - test coverage on the entire fort compiler
-    - command line arguments to show the results of each compilation step
-    - various flags for code generation
-    - several working examples from the programming languages benchmarks game (https://benchmarksgame-team.pages.debian.net/benchmarksgame/index.html)
-    - working examples of some data structures, including a rope (https://en.wikipedia.org/wiki/Rope_(data_structure))
+   Fort is still in the early stages of development.  The core functionality is there, including:
+
+    * LLVM code generation for all fort syntax
+    * interfacing to/from C
+    * separate modules
+    * test coverage on the entire fort compiler
+    * command line arguments to show the results of each compilation step
+    * various flags for code generation
+    * several working examples from the [programming languages benchmarks game] (https://benchmarksgame-team.pages.debian.net/benchmarksgame/index.html)
+    * working examples of some data structures, including a [rope] (https://en.wikipedia.org/wiki/Rope_(data_structure))
 
   but many things are not, including:
-    - documentation/tutorials
-    - pre-built binaries
-    - user libraries
-    - z3 integration
-    - concurrency/parallelism
-    - REPL/Debugger/IDE support
+
+    * documentation/tutorials
+    * pre-built binaries
+    * user libraries
+    * z3 integration
+    * concurrency/parallelism
+    * REPL/Debugger/IDE support
 
   Contributions/feedback are welcome!
 
