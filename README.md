@@ -65,8 +65,8 @@ Warning:
     * test coverage on the entire fort compiler
     * command line arguments to show the results of each compilation step
     * various flags for code generation
-    * several working examples from the [programming languages benchmarks game](https://benchmarksgame-team.pages.debian.net/benchmarksgame/index.html)
-    * working examples of some data structures, including a [rope](https://en.wikipedia.org/wiki/Rope_(data_structure))
+    * several working examples from the programming languages benchmarks game
+    * working examples of some data structures, including a rope
 
   but many things are not, including:
 
