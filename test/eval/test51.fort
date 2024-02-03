@@ -1,0 +1,4 @@
+main = do
+  arr = [ Foo, Bar ]
+  p = Prim.alloca (Prim.typeof arr)
+  Prim.store (p, arr)

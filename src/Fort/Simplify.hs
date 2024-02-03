@@ -14,16 +14,24 @@ import Fort.Prims
 import Fort.Type hiding (M, evalType_)
 import Fort.Utils
 import Fort.Val
+import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Fort.Type as Type
+import qualified Fort.TypeChecker as TC
 
 evalType_ :: Type -> M Ty
-evalType_ = lift . lift . Type.evalType_
+evalType_ = lift . lift . lift . Type.evalType_
+
+unifies :: [(Position, Ty)] -> M Ty
+unifies = lift . TC.unifies
 
 evalSt :: Bool -> [Decl] -> M a -> IO a
 evalSt ssb ds m =
-  flip evalStateT (initTySt ds) $ flip evalStateT (initOpSt ds) $ evalStateT m st0
+  flip evalStateT (initTySt ds) $
+  flip evalStateT (initOpSt ds) $
+  flip evalStateT (TC.initSt False) $
+  evalStateT m st0
   where
     st0 = (initSt ssb) { calls = primCalls }
 
@@ -203,7 +211,7 @@ evalBinding env x e = case x of
   Immediate _ p -> eval env e >>= match p
 
 canBeDelayed :: LIdent -> Exp -> Bool
-canBeDelayed v e = case filter (== nameOf v) $ freeVars e of
+canBeDelayed v e = case filter (== nameOf v) $ freeVarsOf e of
   _ : _ : _ -> False
   _ -> True
 
@@ -211,7 +219,7 @@ eval :: Env -> Exp -> M Val
 eval env x = case x of
     Qualified pos c v -> eval env $ Var pos $ mkQName (textOf c) v
     Var _ v -> case Map.lookup v env of
-      Nothing -> err101 "unknown variable" v $ Map.toList env
+      Nothing -> err100 "unknown variable" v
       Just val -> case val of
         XVDelay env' e -> eval env' e
         _ -> pure val
@@ -296,7 +304,7 @@ eval env x = case x of
 
     Where _ a bs -> do
        let gr = depGraph [ ExpDecl (positionOf b) b | b <- fmap newtypeOf bs ]
-       rds <- reachableDecls gr (Set.fromList $ freeVars a)
+       rds <- reachableDecls gr (Set.fromList $ freeVarsOf a)
        env' <- evalExpDecls env [ ed | ExpDecl _ ed <- rds ]
        eval env' a
 
@@ -335,14 +343,17 @@ eval env x = case x of
         _ -> err101 "expected record in 'select' expression" a (typeOf val)
 
     PrefixOper pos op a -> do
-      tbl <- lift $ gets prefixOps
+      tbl <- lift $ lift $ gets prefixOps
       eval env $ App pos (Var pos $ lookup_ op tbl) a
 
     InfixOper pos a op b -> do
-      tbl <- lift $ gets infixOps
+      tbl <- lift $ lift $ gets infixOps
       eval env $ App pos (App pos (Var pos $ lookup_ op tbl) a) b
 
-    Array _ bs -> VArray <$> mapM (eval env) bs
+    Array _ bs -> do
+      vs <- mapM (eval env) bs
+      t <- unifies $ zip (fmap positionOf bs) $ fmap typeOf vs
+      pure $ VArray (TyArray (List.genericLength bs) t) vs
     Tuple _ a bs -> VTuple <$> mapM (eval env . newtypeOf) (a : bs)
     Parens _ a -> eval env a
     Unit _ -> pure VUnit
@@ -356,3 +367,4 @@ eval env x = case x of
     XArray{} -> unreachable100 "XArray not removed" x
     XDot{} -> unreachable100 "XDot not removed" x
     XRecord{} -> unreachable100 "XRecord not removed" x
+

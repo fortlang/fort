@@ -18,6 +18,12 @@ initTySt ds = TySt{ types = Map.fromList [ (nm, t) | TypeDecl _ nm t <- ds ] }
 
 type TyEnv = Map LIdent Ty
 
+data TCSt = TCSt
+  { nextUnknown :: Int
+  , constraints :: Map Int (LIdent, (Position, Ty))
+  , traceTC :: Bool
+  }
+
 data Ty
   -- these should be eliminated during evalType
   = XTyTLam TyEnv [LIdent] Type
@@ -146,9 +152,7 @@ evalType_ t = evalType mempty t >>= go
       TyOpaque{} -> pure ty
       TyString -> pure ty
       TyChar{} -> pure ty
-      TyFloat sz -> if
-        | sz `elem` [16, 32, 64] -> pure ty
-        | otherwise -> err101 "unsupported Float size" t ty
+      TyFloat{} -> pure ty
       TyInt{} -> pure ty
       TyUInt{} -> pure ty
       TyBool{} -> pure ty
@@ -184,7 +188,9 @@ evalType env x = case x of
 
       (XTyPointer, _) -> pure $ TyPointer tb
       (XTyChar, XTySizes [sz]) -> pure $ TyChar sz
-      (XTyFloat, XTySizes [sz]) -> pure $ TyFloat sz
+      (XTyFloat, XTySizes [sz]) -> if
+        | sz `elem` [16, 32, 64] -> pure $ TyFloat sz
+        | otherwise -> err101 "unsupported Float size" b sz
       (XTyInt, XTySizes [sz]) -> pure $ TyInt sz
       (XTyUInt, XTySizes [sz]) -> pure $ TyUInt sz
       (XXTyArray szs, _) -> pure $ foldr TyArray tb szs

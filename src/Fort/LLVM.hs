@@ -128,7 +128,7 @@ llvmEscString s = concatMap llvmEscChar (s ++ "\0")
 
 llvmEscChar :: Char -> String
 llvmEscChar c = if
-  | c >= ' ' && c <= '~' && c /= '"' -> [c]
+  | c >= ' ' && c <= '~' && c /= '"' && c /= '\\' -> [c]
   | otherwise -> concat $ go hex
   where
   i = fromEnum c

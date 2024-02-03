@@ -29,7 +29,7 @@ dependenciesModules mainNm fns ms = do
     reaches fn ds = do
       exs0 <- mainReaches fn ds
       bs <- exportedFuncs ds
-      exs1 <- sequence [ (n, ) . Exported v t <$> reachableDecls gr (Set.fromList (nameOf v : freeVars t)) | (n, (v, t)) <- bs ]
+      exs1 <- sequence [ (n, ) . Exported v t <$> reachableDecls gr (Set.fromList (nameOf v : typeNames t)) | (n, (v, t)) <- bs ]
       pure $ Map.fromList (exs0 ++ exs1)
 
     gr = modulesDepGraph $ fmap snd ms
@@ -56,6 +56,7 @@ modulesDepGraph ms = depGraph $ concat [ ds | Module _ ds <- ms ]
 
 prims :: [(Name, Vertex)]
 prims = fmap (,-1) (nameOf <$> Map.keys primCalls)
+-- ^ -1 so that the lookup will succeed but these have no dependencies
 
 reachableDecls :: MonadIO m => DepGraph -> Set Name -> m [Decl]
 reachableDecls gr nms = catMaybes <$> mapM f (sccs gr)
@@ -77,7 +78,7 @@ depGraph ds = DepGraph
     (gr, _, _) = graphFromEdges edgs
 
     edgs :: [(Decl, Vertex, [Vertex])]
-    edgs = [ (d, i, catMaybes [ Map.lookup v bnds | v <- List.nub $ freeVars d ]) | (i, d) <- nodes ]
+    edgs = [ (d, i, catMaybes [ Map.lookup v bnds | v <- List.nub $ freeVarsOf d ]) | (i, d) <- nodes ]
 
     nodes :: [(Vertex, Decl)]
     nodes = zip [0..] ds

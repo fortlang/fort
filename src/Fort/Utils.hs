@@ -333,7 +333,13 @@ braced xs = "{" <+> hsep (punctuate comma xs) <+> "}"
 vlist :: Doc ann -> [Doc ann] -> Doc ann
 vlist _ [] = "{}"
 vlist _ [x] = braces x
-vlist a xs = braces $ nest 2 $ vcat (a : xs)
+vlist a xs = braces $ nest 2 $ vsep (a : xs)
+
+isSubmapByKeys :: Ord k => Map k a -> Map k a -> Bool
+isSubmapByKeys = Map.isSubmapOfBy (\_ _ -> True)
+
+isEqualByKeys :: Ord k => Map k a -> Map k a -> Bool
+isEqualByKeys a b = isSubmapByKeys a b && isSubmapByKeys b a
 
 intersectionWithM :: (Monad m, Ord k) => (a -> a -> m a) -> Map k a -> Map k a -> m (Map k a)
 intersectionWithM f m n = mapM (uncurry f) $ Map.intersectionWith (,) m n

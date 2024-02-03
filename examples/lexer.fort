@@ -1,0 +1,486 @@
+qualifier Prelude = "./examples/prelude.fort"
+
+type RE = St -> Ok St
+
+type Ok = \a => Sum
+  Ok: a
+  Err
+
+type MChar = Sum
+  EOF
+  Ch: Char
+
+type St = Record
+  buf-len: Int
+  prev-char-index: Int
+  char-index: Int
+  next-char: MChar
+
+buf : `Pointer (Array 256 Char)` = alloca `Array 256 Char`
+
+init-st : `String -> St` = \s -> do
+  st = record
+    buf-len = countof s
+    char-index = 0
+    prev-char-index = 0
+    next-char = EOF
+  _ = memcpy buf s st.buf-len
+  advance st
+
+advance : `St -> St` = \st -> if
+  st.char-index == st.buf-len -> st with
+    char-index = st.char-index + 1
+    next-char = EOF
+  st.char-index > st.buf-len -> st
+  otherwise -> st with
+    char-index = st.char-index + 1
+    next-char = Ch @(buf # st.char-index)
+  
+tokenize : `RE -> String -> ()` = \f s -> do
+  st = init-st s
+  println $ f st
+
+main : `()` = do
+  ;; tokenize eof ""
+  ;; tokenize eof "hello"
+  ;; println "---"
+  ;; tokenize (char 'A') ""
+  ;; tokenize (char 'A') "a"
+  ;; tokenize (char 'A') "A"
+  ;; println "---"
+  ;; tokenize digit ""
+  ;; tokenize digit "c"
+  ;; tokenize digit "1"
+  ;; tokenize digit "111"
+  ;; println "---"
+  ;; tokenize (digit >>> char 'a') "1b"
+  ;; tokenize (digit >>> char 'a') "1a"
+  ;; println "---"
+  ;; tokenize (many digit) ""
+  ;; tokenize (many digit) "123"
+  ;; tokenize (many digit) "123a"
+  ;; tokenize (many digit) "a"
+  ;; println "---"
+  ;; tokenize (many digit >>> eof) "123"
+  ;; tokenize (many digit >>> eof) "123a"
+  ;; println "---"
+  ;; tokenize (optional digit) ""
+  ;; tokenize (optional digit) "a"
+  ;; tokenize (optional digit) "2"
+  ;; println "---"
+  ;; tokenize integer "2"
+  ;; tokenize integer "23"
+  ;; tokenize integer "-23"
+  ;; tokenize integer "-23.0"
+  ;; println "---"
+  ;; tokenize (many (spaces ||| integer)) "-23  1234   1  3"
+  ;; println "---"
+  ;; tokenize grammar "-23 foo 1.23e-12   ;; 1.03e-12 \n 0xaf Bar , {}[](); ;; 1234  0b00   1  0o7"
+  ;; println "---"
+  ;; tokenize grammar "\"hel\\nlo\" 'a'   '\\9' '\\x9f'"
+  ;; println "---"
+
+  tokenize grammar "+  @++ +@ + \\"
+
+  ;; tokenize grammar "+  @++ +@ @@@ +++"
+  ;; println "---"
+  tokenize grammar "Fooo   Sum   B @@ Record Somereallylongidentifier1234567890"
+  println "---"
+
+grammar = many token >>> eof
+token =
+  spaces |||
+  lident |||
+  uident |||
+  number |||
+  comment |||
+  string-lit |||
+  char-lit |||
+  punctuation |||
+  user-op
+
+newline : `RE` = char nl >>> accept Newline
+lbrace : `RE` = char '{' >>> accept LBrace
+rbrace : `RE` = char '}' >>> accept RBrace
+lparen : `RE` = char '(' >>> accept LParen
+rparen : `RE` = char ')' >>> accept RParen
+lbracket : `RE` = char '[' >>> accept LBracket
+rbracket : `RE` = char ']' >>> accept RBracket
+comma : `RE` = char ',' >>> accept Comma
+semicolon : `RE` = char ';' >>> accept Semicolon
+
+punctuation : `RE` = newline ||| lbrace ||| rbrace ||| lparen ||| rparen ||| lbracket ||| rbracket ||| comma ||| semicolon
+
+;; BAL: non-visible (error token), reserved lower/upper/ops TODO
+
+user-op : `RE` = prefix-op ||| infix-op
+prefix-op : `RE` = char '@' >>> many op-char >>> accept PrefixOp
+
+op-char : `RE` =
+  between '<' '@' |||
+  between '#' '&' |||
+  between '-' '/' |||
+  char '*' |||
+  char '+' |||
+  char '!' |||
+  char '|' |||
+  char ':' |||
+  char backslash |||
+  char '^' |||
+  char '`' |||
+  char '~'
+
+nl : `Char` = '\n'
+
+comment : `RE` = char ';' >>> char ';' >>> many (satisfy (not-equal nl))
+spaces : `RE` = some (char ' ') >>> accept Spaces
+
+string-lit : `RE` =
+ char double-quote >>> many (string-char ||| esc-char) >>> char double-quote >>> accept StringLit
+
+double-quote : `Char` = '"'
+;; BAL: BUG in where clauses
+
+string-char : `RE` = satisfy $ \c -> is-visible c && c != backslash && c != double-quote
+
+char-lit : `RE` = char single-quote >>> (char-char ||| esc-char) >>> char single-quote >>> accept CharLit
+char-char : `RE` = satisfy $ \c -> is-visible c && c != backslash && c != single-quote
+
+esc-char : `RE` = char backslash >>> (esc-hex ||| visible)
+  where
+    esc-hex : `RE` = char 'x' >>> hex-digit >>> hex-digit
+
+is-visible : `Char -> Bool` = \c -> c >= ' ' && c <= '~'
+visible : `RE` = between ' ' '~'
+
+number : `RE` = hexidecimal ||| octal ||| binary ||| decimal
+
+decimal : `RE` = int >>> (fractional ||| accept Integer)
+
+int : `RE` = optional (char '-') >>> nat
+nat : `RE` = some digit
+
+fractional = char '.' >>> nat >>> optional (char 'e' >>> int) >>> accept Float
+
+hexidecimal : `RE` = char '0' >>> char 'x' >>> some hex-digit >>> accept Hexidecimal
+octal : `RE` = char '0' >>> char 'o' >>> some oct-digit >>> accept Octal
+binary : `RE` = char '0' >>> char 'b' >>> some bin-digit >>> accept Binary
+
+lident : `RE` = lower >>> many ident-char >>> (keywords lident-keywords ||| accept LIdent)
+uident : `RE` = upper >>> many ident-char >>> (keywords uident-keywords ||| accept UIdent)
+
+infix-op : `RE` = some op-char >>> (keywords op-keywords ||| accept InfixOp)
+
+error : `RE` = \st -> Err
+
+c-memcmp = extern "memcmp" `(Pointer Char, Pointer Char, Size) -> Int`
+
+memcmp = \p q n -> do
+  r = c-memcmp (cast p `Pointer Char`, cast q `Pointer Char`, cast n `Size`)
+  cast (r == 0) `Bool`
+
+c-strlen = extern "strlen" `Pointer Char -> Size`
+strlen = \s -> cast (c-strlen (cast s `Pointer Char`)) `Int`
+
+type KeywordTable = \a => Array 32 (KeywordTableElem a) ;; BAL: compute the size of this (FEATURE)
+
+type KeywordTableElem = \a => Record
+  count: Int
+  data: Array 32 (String, a) ;; BAL: compute the size of this (FEATURE)
+
+keyword-table = \arr -> do
+  tbl = alloca `KeywordTable Token` ;; BAL: extract token type from array
+  loop 0 $ \i -> if
+    i >= countof tbl -> Done ()
+    otherwise -> do
+      (tbl # i).count := 0
+      Continue (i + 1)
+
+  p = alloca $ typeof arr
+  p := arr
+  ;; ^ BAL: should be able to loop over this with immutable array? (FEATURE)
+
+  loop 0 $ \i -> if
+    i >= countof p -> Done ()
+    otherwise -> do
+      (s, tag) = @(p # i)
+      subtbl-index = strlen s - 1
+      assert (subtbl-index >= 0) "unable to insert empty string into keyword table"
+      elem = tbl # subtbl-index
+      elem.data # @elem.count := (s, tag)
+      elem.count += 1
+      Continue (i + 1)
+
+  tbl
+
+token-length = \st -> st.char-index - st.prev-char-index - 1
+
+keywords = \tbl st -> do
+  len = token-length st
+  subtbl-index = len - 1
+  if
+    subtbl-index >= countof tbl -> Err ;; BAL: should be > longest computed identifier (FEATURE)
+    otherwise -> do
+      k0 = buf # st.prev-char-index
+      subtbl = tbl # subtbl-index
+
+      loop 0 $ \i -> do
+        if
+          i >= @subtbl.count -> Done Err
+          otherwise -> do
+            (k, tag) = @(subtbl.data # i)
+            if
+              memcmp k0 k len -> Done $ accept tag st
+              otherwise -> Continue (i + 1)
+
+type Token = Sum
+  Newline
+  LBrace
+  RBrace
+  LParen
+  RParen
+  LBracket
+  RBracket
+  Comma
+  Semicolon
+  PrefixOp
+  Spaces
+  StringLit
+  CharLit
+  Integer
+  Float
+  Hexidecimal
+  Octal
+  Binary
+  LIdent
+  UIdent
+  InfixOp
+  TArray
+  TBool
+  TC
+  TF
+  VFalse
+  TI
+  TOpaque
+  TPointer
+  TRecord
+  TString
+  TSum
+  VTrue
+  TU
+  VArray
+  Case
+  Do
+  Export
+  Extern
+  If
+  Infix
+  Infixl
+  Infixr
+  Of
+  Operator
+  Qualifier
+  VRecord
+  TailRec
+  Type
+  Where
+  With
+  Tilde
+  Arrow
+  Equal
+  Backtick
+  Backslash
+  Colon
+  Dot
+  FatArrow
+
+uident-keywords = keyword-table
+  [ ("C", TC) ;; BAL: automagically create these sum types from the string (FEATURE)
+  , ("F", TF)
+  , ("I", TI)
+  , ("U", TU)
+  , ("Sum", TSum)
+  , ("True", VTrue)
+  , ("Bool", TBool)
+  , ("Array", TArray)
+  , ("False", VFalse)
+  , ("String", TString)
+  , ("Opaque", TOpaque)
+  , ("Record", TRecord)
+  , ("Pointer", TPointer)
+  ]
+
+lident-keywords = keyword-table
+  [ ("array", VArray)
+  , ("case", Case)
+  , ("do", Do)
+  , ("export", Export)
+  , ("extern", Extern)
+  , ("if", If)
+  , ("infix", Infix)
+  , ("infixl", Infixl)
+  , ("infixr", Infixr)
+  , ("of", Of)
+  , ("operator", Operator)
+  , ("qualifier", Qualifier)
+  , ("record", VRecord)
+  , ("tailrec", TailRec)
+  , ("type", Type)
+  , ("where", Where)
+  , ("with", With)
+  ]
+
+op-keywords = keyword-table
+  [ ("~", Tilde)
+  , ("->", Arrow)
+  , ("=", Equal)
+  , ("`", Backtick)
+  , ("\\", Backslash)
+  , (":", Colon)
+  , (".", Dot)
+  , ("=>", FatArrow)
+  ]
+
+backslash : `Char` = '\\'
+
+lower : `RE` = between 'a' 'z' ||| char '_'
+upper : `RE` = between 'A' 'Z'
+ident-char : `RE` = lower ||| upper ||| digit ||| char single-quote ||| char '-'
+
+single-quote : `Char` = '\''
+
+accept : `Token -> RE` = \tok st -> do
+  print "accepting "
+  print tok
+  print " starting at "
+  print st.prev-char-index
+  print " with length "
+  println $ token-length st
+
+  ;; st' = push tok st.tokens
+  st' = st with prev-char-index = st.char-index - 1
+  Ok st'
+
+optional : `RE -> RE` = \f -> f ||| epsilon
+
+epsilon : `RE` = \st -> Ok st
+
+eof : `RE` = satisfy-mchar (equal EOF)
+
+satisfy-mchar : `(MChar -> Bool) -> RE` = \p st -> if
+  p st.next-char -> Ok $ advance st
+  otherwise -> Err
+
+satisfy : `(Char -> Bool) -> RE` = \p -> satisfy-mchar $ \mc -> case mc of
+  Ch c -> p c
+  EOF -> False
+
+some : `RE -> RE` = \f -> f >>> many f
+
+many : `RE -> RE` = \f -> \st0 -> do
+  loop st0 $ \st -> case f st of
+    Err -> Done (Ok st)
+    Ok st' -> Continue st'
+
+digit : `RE` = between '0' '9'
+between : `Char -> Char -> RE` =  \a b -> satisfy (\c -> c >= a && c <= b)
+char : `Char -> RE` = \c -> satisfy (equal c)
+
+operator ||| = or-matches infixr 2.0
+or-matches : `RE -> RE -> RE` = \f g -> \st -> case f st of
+  Err -> g st
+  r -> r
+
+operator >>> = followed-by infixr 4.0
+followed-by : `RE -> RE -> RE` = \f g -> \st -> case f st of
+  Err -> Err
+  Ok st' -> g st'
+
+hex-digit : `RE` = digit ||| between 'a' 'f'
+oct-digit : `RE` = between '0' '7'
+bin-digit : `RE` = char '0' ||| char '1'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+;; type St = Record
+;;   next-char: Sum
+;;     Ch: Char
+;;     EOF
+;;   buf: Pointer Char
+;;   fd: FileDescr
+;;
+;;
+;; type FileDescr = Pointer (Opaque "FILE")
+;;
+;; c-fopen = extern "fopen" `((Pointer Char, Pointer Char) -> FileDescr)`
+;; c-fread = extern "fread" `(Pointer Char, Size, Size, FileDescr) -> Size`
+;; c-fgetc = extern "fgetc" `FileDescr -> Int`
+;; c-fclose = extern "fclose" `FileDescr -> Int`
+;;
+;; fopen = \fn mode -> c-fopen (cast fn `Pointer Char`, cast mode `Pointer Char`)
+;; fread = \p n fd -> do
+;;   c-fread (cast p `Pointer Char`, cast n `Size`, cast 1 `Size`, fd)
+;;
+;; fclose = \fd -> c-fclose fd
+;;
+;; null = \fd -> cast fd `Int` == 0
+;;
+;; main = do
+;;   fd = fopen "examples/lexer-test.fort" "r"
+;;   if
+;;     null fd -> println "ouch"
+;;     otherwise -> do
+;;       p = alloca `Array 1 Char`
+;;       loop (fread p fd) $ \r -> if
+;;         r -> do
+;; 	  println @(p # 0)
+;; 	  Continue (fread p fd)
+;; 	otherwise -> Done ()
+;;       void $ fclose fd
+;;
+;;   println fd
+;;
+

@@ -50,7 +50,10 @@ envModule (fn, Module _ ds) = do
 qualModule :: (FilePath, Module) -> M (FilePath, Module)
 qualModule x@(fn, Module pos ds) = do
   env' <- envModule x
-  local (\st -> st{ env = Map.union env' $ env st }) $ (fn,) . Module pos <$> mapM (qualDecl $ Text.pack fn) ds
+  local (\st -> st{ env = Map.union env' $ env st }) $ do
+    ds' <- mapM (qualDecl $ Text.pack fn) ds
+    ds'' <- qualAllTypes ds'
+    pure (fn, Module pos ds'')
 
 subEnv :: Bindings a => a -> M b -> M b
 subEnv x m = do
@@ -143,9 +146,9 @@ qualDecl fn x = case x of
   ExpDecl pos d -> ExpDecl pos . mkQNameExpDecl fn <$> qualExpDecl d
   InfixDecl pos n a -> InfixDecl pos n <$> qualInfixInfo a
   PrefixDecl pos n m -> PrefixDecl pos n <$> qualQualLIdent m
-  TypeDecl pos n t -> TypeDecl pos (mkQName fn n) <$> qualType t
+  TypeDecl pos n t -> pure $ TypeDecl pos (mkQName fn n) t
   QualDecl{} -> pure x
-  ExportDecl pos s n t -> ExportDecl pos s <$> qualQualLIdent n <*> qualType t
+  ExportDecl pos s n t -> ExportDecl pos s <$> qualQualLIdent n <*> pure t
 
 mkQNameExpDecl :: Text -> ExpDecl -> ExpDecl
 mkQNameExpDecl fn x = case x of
@@ -170,58 +173,19 @@ qualLayoutElemIfBranch (LayoutElemIfBranch pos a) = LayoutElemIfBranch pos <$> q
 qualIfBranch :: IfBranch -> M IfBranch
 qualIfBranch (IfBranch pos a b) = IfBranch pos <$> qualExp a <*> qualExp b
 
-qualTField :: TField -> M TField
-qualTField (TField pos fld t) = TField pos fld <$> qualType t
-
-qualLayoutElemTField :: LayoutElemTField -> M LayoutElemTField
-qualLayoutElemTField (LayoutElemTField pos a) = LayoutElemTField pos <$> qualTField a
-
-qualTSum :: TSum -> M TSum
-qualTSum x = case x of
-  TCon pos c t -> TCon pos c <$> qualType t
-  TEnum{} -> pure x
-
-qualLayoutElemTSum :: LayoutElemTSum -> M LayoutElemTSum
-qualLayoutElemTSum (LayoutElemTSum pos a) = LayoutElemTSum pos <$> qualTSum a
-
-qualTupleElemType :: TupleElemType -> M TupleElemType
-qualTupleElemType (TupleElemType pos a) = TupleElemType pos <$> qualType a
+qualAllTypes :: Data a => a -> M a
+qualAllTypes = transformBiM qualType
 
 qualType :: Type -> M Type
 qualType x = case x of
-  -- BAL: TName's should be eliminated since all type decls are top level
+  -- TName's can be eliminated since all type decls are top level
   TName pos n -> do
     mq <- lookupName n
     pure $ case mq of
       Nothing -> x
       Just q -> TQualName pos q n
-
   TQualName pos q n -> TQualName pos <$> qualify q <*> pure n
-  TArray{} -> pure x
-  TChar{} -> pure x
-  TFloat{} -> pure x
-  TInt{} -> pure x
-  TPointer{} -> pure x
-  TSize{} -> pure x
-  TSizes{} -> pure x
-  TString{} -> pure x
-  TUInt{} -> pure x
-  TUnit{} -> pure x
-  TBool{} -> pure x
-  TVar{} -> pure x
-  TOpaque{} -> pure x
-
-  TLam pos vs t -> TLam pos vs <$> go t
-  TFun pos a b -> TFun pos <$> go a <*> go b
-  TApp pos a b -> TApp pos <$> go a <*> go b
-  TParens pos a -> TParens pos <$> go a
-
-  TRecord pos bs -> TRecord pos <$> mapM qualLayoutElemTField bs
-  TSum pos bs -> TSum pos <$> mapM qualLayoutElemTSum bs
-  TTuple pos a bs -> TTuple pos <$> qualTupleElemType a <*> mapM qualTupleElemType bs
-
-  where
-    go = qualType
+  _ -> pure x
 
 qualExp :: Exp -> M Exp
 qualExp x = case x of
@@ -257,14 +221,14 @@ qualExp x = case x of
 
   Qualified pos q v -> Qualified pos <$> qualify q <*> pure v
 
-  Typed pos e t -> Typed pos <$> go e <*> qualType t
+  Typed pos e t -> Typed pos <$> go e <*> pure t
   With pos e ds -> With pos <$> go e <*> mapM qualLayoutElemFieldDecl ds
   App pos a b -> App pos <$> go a <*> go b
-  EType pos t -> EType pos <$> qualType t
+  EType{} -> pure x
   Parens pos a -> Parens pos <$> go a
   Tuple pos a bs -> Tuple pos <$> qualTupleElemExp a <*> mapM qualTupleElemExp bs
   If pos bs -> If pos <$> mapM qualLayoutElemIfBranch bs
-  Extern pos a t -> Extern pos a <$> qualType t
+  Extern{} -> pure x
 
   where
      go = qualExp

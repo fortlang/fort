@@ -6,7 +6,6 @@ where
 
 import Fort.Type hiding (M)
 import Fort.Utils
-import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -52,7 +51,7 @@ templateOfVals x y = case (x, y) of
   (_, XVNone) -> pure x
   _ | x == y -> pure x
   (VRecord bs, VRecord cs) -> VRecord <$> intersectionWithM templateOfVals bs cs
-  (VArray bs, VArray cs) | length bs == length cs -> VArray <$> zipWithM templateOfVals bs cs
+  (VArray t bs, VArray _ cs) | length bs == length cs -> VArray t <$> zipWithM templateOfVals bs cs
   (VTuple bs, VTuple cs) | length bs == length cs -> VTuple <$> zipWithM templateOfVals bs cs
   (VSum mb bs, VSum mc cs) -> do
     bs' <- extendSum bs cs
@@ -81,7 +80,7 @@ instantiateWithUndef x = case x of
 unionVals :: Val -> Val -> M Val -- left biased union
 unionVals x y = case (x, y) of
   (VRecord bs, VRecord cs) -> VRecord <$> intersectionWithM unionVals bs cs
-  (VArray bs, VArray cs) | length bs == length cs -> VArray <$> zipWithM unionVals bs cs
+  (VArray t bs, VArray _ cs) | length bs == length cs -> VArray t <$> zipWithM unionVals bs cs
   (VTuple bs, VTuple cs) | length bs == length cs -> VTuple <$> zipWithM unionVals bs cs
   (VSum k bs, VSum l cs) -> VSum <$> unionVals k l <*> unionWithM (joinSumDataVals unionVals) bs cs
   (VPtr t a, VPtr _ b) -> VPtr t <$> unionVals a b
@@ -153,7 +152,8 @@ freshValF f x = case x of
     go = freshValF f
 
 type Env = Map LIdent Val
-type M a = StateT St (StateT OpSt (StateT TySt IO)) a
+
+type M a = StateT St (StateT TCSt (StateT OpSt (StateT TySt IO))) a
 
 mkTyEnum :: [UIdent] -> Ty
 mkTyEnum = TyEnum . Set.fromList
@@ -209,7 +209,7 @@ data Val
   -- at then end, only these remain
   | VType Ty
   -- constructed values
-  | VArray [Val]
+  | VArray Ty [Val]
   | VRecord (Map LIdent Val)
   | VSum Val (Map UIdent (Maybe Val))
   | VTuple [Val] -- 2 or more
@@ -316,7 +316,7 @@ instance Pretty Val where
     VRecord m -> "record" <+> pretty m
     VSum con m -> vlist "sum" [ "Tag:" <+> pretty con, "UNION:" <+> pretty m ]
     VType t -> "`" <> pretty t <> "`"
-    VArray vs -> list $ fmap pretty vs
+    VArray _ vs -> list $ fmap pretty vs
     VTuple vs -> tupled $ fmap pretty vs
     VUnit -> "()"
     VScalar a -> pretty a
@@ -343,7 +343,7 @@ instance Typed Val where
     VSum _ m -> TySum $ fmap (fmap typeOf) m
     VTuple vs -> TyTuple $ fmap typeOf vs
     VUnit -> TyUnit
-    VArray vs@(v : _) -> TyArray (List.genericLength vs) $ typeOf v -- BAL: the vs need to be unified
+    VArray t _ -> t
     VPtr t _ -> t
     VIndexed t _ _ -> t
     VScalar a -> typeOf a
@@ -388,7 +388,7 @@ flattenVal :: Val -> Maybe Val
 flattenVal x = case x of
   VRecord m -> f $ fmap snd $ sortByFst $ Map.toList m
   VSum k m -> f (k : fmap snd (sortByFst [ (con, v) | (con, Just v) <- Map.toList m ]))
-  VArray vs -> f vs
+  VArray _ vs -> f vs
   VTuple vs | all isFlatVal vs -> Nothing
   VTuple vs -> f $ concatMap flattenVTuple vs
   VPtr _ a -> Just a

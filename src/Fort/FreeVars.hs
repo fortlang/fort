@@ -1,4 +1,4 @@
-module Fort.FreeVars (freeVars) where
+module Fort.FreeVars (freeVarsOf, typeNames) where
 
 import Fort.Bindings
 import Fort.Utils
@@ -21,21 +21,24 @@ unions = concat
 difference :: Eq a => [a] -> [a] -> [a]
 difference bs cs = filter (`notElem` cs) bs
 
+typeNames :: Type -> [Name]
+typeNames x = [ Name pos $ mkQNameText (textOf a) (textOf b) | TQualName pos a b <- universe x ]
+
+freeVarsOf :: (Data a, FreeVars a) => a -> [Name]
+freeVarsOf x = unions (freeVars x : [ typeNames t | t :: Type <- universeBi x ])
+
 instance FreeVars Decl where
   freeVars x = case x of
     ExpDecl _ a -> freeVars a
     InfixDecl _ _ (InfixInfo _ n _ _) -> singleton $ nameOf n
     PrefixDecl _ _ n -> singleton $ nameOf n
-    TypeDecl _ _ t -> freeVars t
+    TypeDecl{} -> mempty
     QualDecl{} -> mempty
-    ExportDecl _ _ n t -> insert (nameOf n) $ freeVars t
-
-instance FreeVars Type where
-  freeVars x = [ Name pos $ mkQNameText (textOf a) (textOf b) | TQualName pos a b <- universe x ]
+    ExportDecl _ _ n _ -> singleton $ nameOf n
 
 instance FreeVars ExpDecl where
   freeVars x = case x of
-    Binding _ _ e -> freeVars e `difference` bindings x
+    Binding _ v e -> freeVars e `difference` bindings v
     TailRec _ d -> freeVars d
 
 instance FreeVars FieldDecl where
@@ -78,12 +81,12 @@ instance FreeVars Exp where
     Qualified pos a b -> singleton $ nameOf $ Qual pos a b
 
     Lam _ ps e -> freeVars e `difference` bindings ps
-    Case _ a bs -> freeVars a `union` unions (fmap freeVars bs)
-    With _ e ds -> freeVars e `union` unions (fmap freeVars ds)
+    Case _ a bs -> unions (freeVars a : fmap freeVars bs)
+    With _ e ds -> unions (freeVars e : fmap freeVars ds)
 
-    Typed _ a b -> freeVars a `union` freeVars b
-    EType _ t -> freeVars t
-    Extern _ _ t -> freeVars t
+    Typed _ a _ -> freeVars a
+    EType{} -> mempty
+    Extern{} -> mempty
 
     InfixOper _ a op b -> nameOf op `insert` freeVars a `union` freeVars b
     PrefixOper _ op a -> nameOf op `insert` freeVars a

@@ -1,0 +1,16 @@
+type St = Record
+  foo: I 32
+  bar: C 8
+
+baz = \st : `St` -> st.foo
+
+println = \a -> do
+  Prim.print a
+  Prim.print '\n'
+
+main = do
+  r = record
+    foo = 12
+    ;; bar = 'a'
+  println (baz r)
+

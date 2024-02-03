@@ -107,12 +107,6 @@ indexTC a ix = case a of
   TyPointer (TyArray _ t) -> pure $ TyPointer t
   _ -> throwError "unexpected input type to 'index'"
 
-isSubmapByKeys :: Ord k => Map k a -> Map k a -> Bool
-isSubmapByKeys = Map.isSubmapOfBy (\_ _ -> True)
-
-isEqualByKeys :: Ord k => Map k a -> Map k a -> Bool
-isEqualByKeys a b = isSubmapByKeys a b && isSubmapByKeys b a
-
 sumTyIsSmallerOrEq :: Maybe Ty -> Maybe Ty -> Bool
 sumTyIsSmallerOrEq x y = case (x, y) of
   (Just a, Just b) -> a `isSmallerOrEq` b
@@ -343,7 +337,7 @@ neVal x y = case (x, y) of
   (VTuple bs, VTuple cs) -> do
     vs <- zipWithM neVal bs cs
     foldM orVal (VScalar $ VBool False) vs
-  (VRecord m, VRecord n) -> do
+  (VRecord m, VRecord n) | isEqualByKeys m n -> do
     vs <- intersectionWithM neVal m n
     foldM orVal (VScalar $ VBool False) $ Map.elems vs
   (VSum b m, VSum c n) | isValEnum b && isValEnum c -> do
@@ -365,7 +359,7 @@ eqVal x y = case (x, y) of
   (VTuple bs, VTuple cs) -> do
     vs <- zipWithM eqVal bs cs
     foldM andVal (VScalar $ VBool True) vs
-  (VRecord m, VRecord n) -> do
+  (VRecord m, VRecord n) | isEqualByKeys m n -> do
     vs <- intersectionWithM eqVal m n
     foldM andVal (VScalar $ VBool True) $ Map.elems vs
   (VSum b m, VSum c n) | isValEnum b && isValEnum c -> do
@@ -499,7 +493,7 @@ store p0 x0 = case p0 of
       (VTuple ps, VTuple bs) -> do
         zipWithM_ go ps bs
         pure VUnit
-      (VRecord ps, VRecord bs) -> do
+      (VRecord ps, VRecord bs) | isEqualByKeys ps bs -> do
         void $ intersectionWithM go ps bs
         pure VUnit
       (VSum j m, VSum k n) -> do
@@ -507,7 +501,7 @@ store p0 x0 = case p0 of
         void $ intersectionWithM goSumDataVal m n
         pure VUnit
       (VScalar a, _) -> storeScalar a x
-      (VIndexed _ sz r, VArray vs) | List.genericLength vs == sz -> do
+      (VIndexed _ sz r, VArray _ vs) | List.genericLength vs == sz -> do
           zipWithM_ (goValAtIndex r) vs [0..]
           pure VUnit
       _ -> err111 "unexpected values to 'store'" (noPos p) (noPos x) noTCHint
@@ -606,7 +600,7 @@ printVal x = case x of
       printSep "; " (void . printSumAlt) $ sortByFst $ Map.toList m
       printChLit '}'
 
-  VArray vs -> do
+  VArray _ vs -> do
     printChLit '['
     printSep ", " printVal vs
     printChLit ']'
