@@ -7,6 +7,7 @@ module Fort.Qualify (qualifyModules) where
 import Fort.Bindings
 import Fort.Utils
 import qualified Data.List as List
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 
@@ -27,6 +28,7 @@ toQualifierTable :: [(UIdent, FilePath)] -> M (Map UIdent Text)
 toQualifierTable xs = Map.fromList <$> mapM f (Map.toList m)
   where
     m = foldr (\(q, fn) -> Map.insertWith (++) q [(q, fn)]) mempty xs
+    f :: (UIdent, [(UIdent, FilePath)]) -> M (UIdent, Text)
     f (q, _) | textOf q == "Prim" = err100 "'Prim' is a reserved qualifier" q
     f (q, bs) = case List.nub $ fmap snd bs of
       [fn] -> pure (q, Text.pack fn)
@@ -60,17 +62,6 @@ subEnv x m = do
   ks <- fmap textOf <$> uniqueBindings x
   local (\st -> st{ env = List.foldr Map.delete (env st) ks }) m
 
-tupleElemExpToTupleElemPat :: TupleElemExp -> M TupleElemPat
-tupleElemExpToTupleElemPat (TupleElemExp pos a) = TupleElemPat pos <$> expToPat a
-
-expToPat :: Exp -> M Pat
-expToPat x = case x of
-  Parens pos a -> PParens pos <$> expToPat a
-  Tuple pos a bs -> PTuple pos <$> tupleElemExpToTupleElemPat a <*> mapM tupleElemExpToTupleElemPat bs
-  Typed pos a t -> PTyped pos <$> expToPat a <*> pure t
-  Unit pos -> pure $ PUnit pos
-  Var pos v -> pure $ PVar pos v
-  _ -> err100 "expression where pattern expected" x
 
 uniqueBindings :: Bindings a => a -> M [Name]
 uniqueBindings x = do
@@ -89,18 +80,6 @@ lookupName n = do
       [q] -> pure $ Just $ mkTok (positionOf n) (textOf q)
       _ -> err1n0 "ambiguous name" n qs
 
-qualLayoutElemExpDecl :: LayoutElemExpDecl -> M LayoutElemExpDecl
-qualLayoutElemExpDecl (LayoutElemExpDecl pos a) = LayoutElemExpDecl pos <$> qualExpDecl a
-
-qualLayoutElemFieldDecl :: LayoutElemFieldDecl -> M LayoutElemFieldDecl
-qualLayoutElemFieldDecl (LayoutElemFieldDecl pos a) = LayoutElemFieldDecl pos <$> qualFieldDecl a
-
-qualFieldDecl :: FieldDecl -> M FieldDecl
-qualFieldDecl (FieldDecl pos fld e) = FieldDecl pos fld <$> qualExp e
-
-qualLayoutElemCaseAlt :: LayoutElemCaseAlt -> M LayoutElemCaseAlt
-qualLayoutElemCaseAlt (LayoutElemCaseAlt pos a) = LayoutElemCaseAlt pos <$> qualCaseAlt a
-
 qualCaseAlt :: CaseAlt -> M CaseAlt
 qualCaseAlt (CaseAlt pos altp e) = CaseAlt pos altp <$> subEnv altp (qualExp e)
 
@@ -110,16 +89,10 @@ qualExpDecl x = case x of
   TailRec pos a -> TailRec pos <$> qualTailRecDecls a
 
 qualTailRecDecls :: TailRecDecls -> M TailRecDecls
-qualTailRecDecls (TailRecDecls pos ds) = TailRecDecls pos <$> mapM qualLayoutElemTailRecDecl ds -- don't remove the ds bindings
-
-qualLayoutElemTailRecDecl :: LayoutElemTailRecDecl -> M LayoutElemTailRecDecl
-qualLayoutElemTailRecDecl (LayoutElemTailRecDecl pos a) = LayoutElemTailRecDecl pos <$> qualTailRecDecl a
+qualTailRecDecls (TailRecDecls pos ds) = TailRecDecls pos <$> mapM qualTailRecDecl ds -- don't remove the ds bindings
 
 qualTailRecDecl :: TailRecDecl -> M TailRecDecl
 qualTailRecDecl (TailRecDecl pos a b c) = TailRecDecl pos a b <$> subEnv b (qualExp c) -- binding 'a' should not be removed from env
-
-qualTupleElemExp :: TupleElemExp -> M TupleElemExp
-qualTupleElemExp (TupleElemExp pos e) = TupleElemExp pos <$> qualExp e
 
 qualInfixInfo :: InfixInfo -> M InfixInfo
 qualInfixInfo (InfixInfo pos qn fx pr) = InfixInfo pos <$> qualQualLIdent qn <*> pure fx <*> pure pr
@@ -156,22 +129,13 @@ mkQNameExpDecl fn x = case x of
   TailRec pos d -> TailRec pos (mkQNameTailRecDecls fn d)
 
 mkQNameTailRecDecls :: Text -> TailRecDecls -> TailRecDecls
-mkQNameTailRecDecls fn (TailRecDecls pos bs) = TailRecDecls pos $ fmap (mkQNameLayoutElemTailRecDecl fn) bs
-
-mkQNameLayoutElemTailRecDecl :: Text -> LayoutElemTailRecDecl -> LayoutElemTailRecDecl
-mkQNameLayoutElemTailRecDecl fn (LayoutElemTailRecDecl pos a) = LayoutElemTailRecDecl pos $ mkQNameTailRecDecl fn a
+mkQNameTailRecDecls fn (TailRecDecls pos bs) = TailRecDecls pos $ fmap (mkQNameTailRecDecl fn) bs
 
 mkQNameTailRecDecl :: Text -> TailRecDecl -> TailRecDecl
 mkQNameTailRecDecl fn (TailRecDecl pos a b c) = TailRecDecl pos (mkQName fn a) b c
 
 mkQNameBinding :: Text -> Binding -> Binding
 mkQNameBinding fn = transformBi (mkQName fn :: LIdent -> LIdent)
-
-qualLayoutElemIfBranch :: LayoutElemIfBranch -> M LayoutElemIfBranch
-qualLayoutElemIfBranch (LayoutElemIfBranch pos a) = LayoutElemIfBranch pos <$> qualIfBranch a
-
-qualIfBranch :: IfBranch -> M IfBranch
-qualIfBranch (IfBranch pos a b) = IfBranch pos <$> qualExp a <*> qualExp b
 
 qualAllTypes :: Data a => a -> M a
 qualAllTypes = transformBiM qualType
@@ -190,9 +154,9 @@ qualType x = case x of
 qualExp :: Exp -> M Exp
 qualExp x = case x of
   Lam pos bs e -> Lam pos bs <$> subEnv bs (go e)
-  Where pos e ds -> subEnv ds (Where pos <$> go e <*> mapM qualLayoutElemExpDecl ds)
-  Do pos bs -> Do pos <$> qualLayoutElemStmts bs
-  Case pos e alts -> Case pos <$> go e <*> mapM qualLayoutElemCaseAlt alts
+  Where pos e ds -> subEnv ds (Where pos <$> go e <*> mapM qualExpDecl ds)
+  Do pos bs -> Do pos <$> qualStmts bs
+  Case pos e alts -> Case pos <$> go e <*> mapM qualCaseAlt alts
 
   Var pos v -> do
     mq <- lookupName v
@@ -207,43 +171,39 @@ qualExp x = case x of
   Scalar{} -> pure x
 
   Con{} -> pure x
-  Select{} -> unreachable001 "qualExp:Select already simplified" x
+  Select pos e fld -> Select pos <$> go e <*> pure fld
 
   Array pos es -> Array pos <$> mapM go es
-  XArray pos es -> go $ Array pos $ fmap newtypeOf es
 
-  Record pos ds -> Record pos <$> sequence [ FieldDecl p fld <$> go e | FieldDecl p fld e <- ds ]
-  XRecord pos ds -> go $ Record pos $ fmap newtypeOf ds
-
-  XDot pos e fld -> case e of
-    Con _ q -> qualExp $ Qualified pos q $ mkTok (positionOf fld) (textOf fld)
-    _ -> Select pos <$> go e <*> pure fld
+  Record pos ds -> Record pos . NE.fromList <$> sequence [ FieldDecl p fld <$> go e | FieldDecl p fld e <- toList ds ]
 
   Qualified pos q v -> Qualified pos <$> qualify q <*> pure v
 
   Typed pos e t -> Typed pos <$> go e <*> pure t
-  With pos e ds -> With pos <$> go e <*> mapM qualLayoutElemFieldDecl ds
+  With pos e ds -> With pos <$> go e <*> mapM qualFieldDecl ds
   App pos a b -> App pos <$> go a <*> go b
   EType{} -> pure x
   Parens pos a -> Parens pos <$> go a
-  Tuple pos a bs -> Tuple pos <$> qualTupleElemExp a <*> mapM qualTupleElemExp bs
-  If pos bs -> If pos <$> mapM qualLayoutElemIfBranch bs
+  Tuple pos bs -> Tuple pos <$> mapM qualExp bs
+  If pos a b c -> If pos <$> qualExp a <*> qualExp b <*> qualExp c
+  Else pos a b -> Else pos <$> qualExp a <*> qualExp b
   Extern{} -> pure x
 
   where
      go = qualExp
 
-qualLayoutElemStmts :: [LayoutElemStmt] -> M [LayoutElemStmt]
-qualLayoutElemStmts [] = pure []
-qualLayoutElemStmts (LayoutElemStmt pos x : ys) = do
-  (x', ys') <- case x of
-    Let{} -> unreachable001 "qualLayoutElemStmts: 'let' already simplified" x
-    XLet pos1 pe e -> do
-      p <- expToPat pe
-      (,) <$> (Let pos1 p <$> qualExp e) <*> subEnv p (go ys)
-    TailRecLet pos1 a -> (,) <$> (TailRecLet pos1 <$> qualTailRecDecls a) <*> subEnv a (go ys)
-    Stmt pos1 e -> (,) <$> (Stmt pos1 <$> qualExp e) <*> go ys
-  pure (LayoutElemStmt pos x' : ys')
+qualFieldDecl :: FieldDecl -> M FieldDecl
+qualFieldDecl (FieldDecl pos fld e) = FieldDecl pos fld <$> qualExp e
+
+qualStmts :: NonEmpty Stmt -> M (NonEmpty Stmt)
+qualStmts (x :| ys) = do
+  case x of
+    Let pos p e -> (:|) <$> (Let pos p <$> qualExp e) <*> subEnv p ys'
+    TailRecLet pos a -> (:|) <$> (TailRecLet pos <$> qualTailRecDecls a) <*> subEnv a ys'
+    Stmt pos e -> (:|) <$> (Stmt pos <$> qualExp e) <*> ys'
   where
-    go = qualLayoutElemStmts
+    ys' = case ys of
+      [] -> pure []
+      y : rest -> toList <$> qualStmts (y :| rest)
+
 

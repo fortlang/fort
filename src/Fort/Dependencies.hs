@@ -5,7 +5,6 @@ where
 import Data.Graph
 import Fort.Bindings
 import Fort.FreeVars
-import Fort.Prims
 import Fort.Utils
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -54,10 +53,6 @@ exportedFuncs ds = do
 modulesDepGraph :: [Module] -> DepGraph
 modulesDepGraph ms = depGraph $ concat [ ds | Module _ ds <- ms ]
 
-prims :: [(Name, Vertex)]
-prims = fmap (,-1) (nameOf <$> Map.keys primCalls)
--- ^ -1 so that the lookup will succeed but these have no dependencies
-
 reachableDecls :: MonadIO m => DepGraph -> Set Name -> m [Decl]
 reachableDecls gr nms = catMaybes <$> mapM f (sccs gr)
   where
@@ -84,7 +79,7 @@ depGraph ds = DepGraph
     nodes = zip [0..] ds
 
     bnds :: Map Name Vertex
-    bnds = Map.fromList $ prims ++ concat [ [ (v, i) | v <- bindings d ] | (i, d) <- nodes ]
+    bnds = Map.fromList $ concat [ [ (v, i) | v <- bindings d ] | (i, d) <- nodes ]
 
 data DepGraph = DepGraph
   { graph :: Graph

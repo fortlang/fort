@@ -15,6 +15,9 @@ insert = (:)
 union :: [a] -> [a] -> [a]
 union = (++)
 
+neunions :: Foldable t => t [a] -> [a]
+neunions = unions . toList
+
 unions :: [[a]] -> [a]
 unions = concat
 
@@ -44,45 +47,30 @@ instance FreeVars ExpDecl where
 instance FreeVars FieldDecl where
   freeVars (FieldDecl _ _ e) = freeVars e
 
-instance FreeVars IfBranch where
-  freeVars (IfBranch _ a b) = freeVars a `union` freeVars b
-
-instance FreeVars LayoutElemIfBranch where
-  freeVars (LayoutElemIfBranch _ a) = freeVars a
-
-instance FreeVars TupleElemExp where
-  freeVars (TupleElemExp _ e) = freeVars e
-
-instance FreeVars LayoutElemFieldDecl where
-  freeVars (LayoutElemFieldDecl _ d) = freeVars d
-
 instance FreeVars CaseAlt where
   freeVars (CaseAlt _ altp e) = freeVars e `difference` bindings altp
 
-instance FreeVars LayoutElemCaseAlt where
-  freeVars (LayoutElemCaseAlt _ d) = freeVars d
-
-freeVarsStmts :: [LayoutElemStmt] -> [Name]
-freeVarsStmts [] = mempty
-freeVarsStmts (b : bs) =
-  let fvs = freeVarsStmts bs in
-  case newtypeOf b of
-    Stmt _ e -> freeVars e `union` fvs
-    Let _ p e -> freeVars e `union` (fvs `difference` bindings p)
-    TailRecLet _ d -> freeVars d `union` (fvs `difference` bindings d)
-    XLet{} -> unreachable "freeVars: XLet not removed" b
+freeVarsStmts :: NonEmpty Stmt -> [Name]
+freeVarsStmts (b :| bs) = case b of
+  Stmt _ e -> freeVars e `union` fvs
+  Let _ p e -> freeVars e `union` (fvs `difference` bindings p)
+  TailRecLet _ d -> freeVars d `union` (fvs `difference` bindings d)
+  where
+    fvs = case bs of
+      [] -> mempty
+      c : cs -> freeVarsStmts (c :| cs)
 
 instance FreeVars Exp where
   freeVars x = case x of
-    Where _ a bs -> unions (freeVars a : fmap freeVars bs) `difference` bindings bs
+    Where _ a bs -> neunions (freeVars a <| fmap freeVars bs) `difference` bindings bs
     Do _ bs -> freeVarsStmts bs
 
     Var _ v -> singleton $ nameOf v
     Qualified pos a b -> singleton $ nameOf $ Qual pos a b
 
     Lam _ ps e -> freeVars e `difference` bindings ps
-    Case _ a bs -> unions (freeVars a : fmap freeVars bs)
-    With _ e ds -> unions (freeVars e : fmap freeVars ds)
+    Case _ a bs -> neunions (freeVars a <| fmap freeVars bs)
+    With _ e ds -> neunions (freeVars e <| fmap freeVars ds)
 
     Typed _ a _ -> freeVars a
     EType{} -> mempty
@@ -91,30 +79,21 @@ instance FreeVars Exp where
     InfixOper _ a op b -> nameOf op `insert` freeVars a `union` freeVars b
     PrefixOper _ op a -> nameOf op `insert` freeVars a
     App _ a b -> freeVars a `union` freeVars b
-    Array _ es -> unions $ fmap freeVars es
-    If _ bs -> unions $ fmap freeVars bs
+    Array _ es -> neunions $ fmap freeVars es
+    If _ a b c -> unions $ fmap freeVars [a, b, c]
+    Else _ a b -> unions $ fmap freeVars [a, b]
     Parens _ a -> freeVars a
-    Record _ bs -> unions $ fmap freeVars bs
+    Record _ bs -> neunions $ fmap freeVars bs
     Select _ a _ -> freeVars a
-    Tuple _ a bs -> unions $ fmap freeVars (a:bs)
+    Tuple _ bs -> neunions $ fmap freeVars bs
 
     Con{} -> mempty
     Unit{} -> mempty
     Scalar{} -> mempty
 
-    XArray{} -> unreachable "freeVars: XArray not removed" x
-    XDot{} -> unreachable "freeVars: XDot not removed" x
-    XRecord{} -> unreachable "freeVars: XRecord not removed" x
-
 instance FreeVars TailRecDecl where
   freeVars (TailRecDecl _ a b e) = freeVars e `difference` (bindings a ++ bindings b)
 
-instance FreeVars LayoutElemTailRecDecl where
-  freeVars (LayoutElemTailRecDecl _ a) = freeVars a
-
-instance FreeVars LayoutElemExpDecl where
-  freeVars (LayoutElemExpDecl _ a) = freeVars a
-
 instance FreeVars TailRecDecls where
-  freeVars x@(TailRecDecls _ ds) = unions (fmap freeVars ds) `difference` bindings x
+  freeVars x@(TailRecDecls _ ds) = neunions (fmap freeVars ds) `difference` bindings x
 

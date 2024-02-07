@@ -99,19 +99,19 @@ token =
   punctuation |||
   user-op
 
-newline : `RE` = char nl >>> accept Newline
-lbrace : `RE` = char '{' >>> accept LBrace
-rbrace : `RE` = char '}' >>> accept RBrace
-lparen : `RE` = char '(' >>> accept LParen
-rparen : `RE` = char ')' >>> accept RParen
-lbracket : `RE` = char '[' >>> accept LBracket
-rbracket : `RE` = char ']' >>> accept RBracket
-comma : `RE` = char ',' >>> accept Comma
-semicolon : `RE` = char ';' >>> accept Semicolon
-
 punctuation : `RE` = newline ||| lbrace ||| rbrace ||| lparen ||| rparen ||| lbracket ||| rbracket ||| comma ||| semicolon
+  where
+    newline : `RE` = char nl >>> accept Newline
+    lbrace : `RE` = char '{' >>> accept LBrace
+    rbrace : `RE` = char '}' >>> accept RBrace
+    lparen : `RE` = char '(' >>> accept LParen
+    rparen : `RE` = char ')' >>> accept RParen
+    lbracket : `RE` = char '[' >>> accept LBracket
+    rbracket : `RE` = char ']' >>> accept RBracket
+    comma : `RE` = char ',' >>> accept Comma
+    semicolon : `RE` = char ';' >>> accept Semicolon
 
-;; BAL: non-visible (error token), reserved lower/upper/ops TODO
+;; BAL: non-visible (error token)
 
 user-op : `RE` = prefix-op ||| infix-op
 prefix-op : `RE` = char '@' >>> many op-char >>> accept PrefixOp
@@ -136,15 +136,14 @@ comment : `RE` = char ';' >>> char ';' >>> many (satisfy (not-equal nl))
 spaces : `RE` = some (char ' ') >>> accept Spaces
 
 string-lit : `RE` =
- char double-quote >>> many (string-char ||| esc-char) >>> char double-quote >>> accept StringLit
-
-double-quote : `Char` = '"'
-;; BAL: BUG in where clauses
-
-string-char : `RE` = satisfy $ \c -> is-visible c && c != backslash && c != double-quote
+  char double-quote >>> many (string-char ||| esc-char) >>> char double-quote >>> accept StringLit
+    where
+    double-quote : `Char` = '"'
+    string-char : `RE` = satisfy $ \c -> is-visible c && c != backslash && c != double-quote
 
 char-lit : `RE` = char single-quote >>> (char-char ||| esc-char) >>> char single-quote >>> accept CharLit
-char-char : `RE` = satisfy $ \c -> is-visible c && c != backslash && c != single-quote
+  where
+    char-char : `RE` = satisfy $ \c -> is-visible c && c != backslash && c != single-quote
 
 esc-char : `RE` = char backslash >>> (esc-hex ||| visible)
   where
@@ -165,6 +164,10 @@ fractional = char '.' >>> nat >>> optional (char 'e' >>> int) >>> accept Float
 hexidecimal : `RE` = char '0' >>> char 'x' >>> some hex-digit >>> accept Hexidecimal
 octal : `RE` = char '0' >>> char 'o' >>> some oct-digit >>> accept Octal
 binary : `RE` = char '0' >>> char 'b' >>> some bin-digit >>> accept Binary
+
+hex-digit : `RE` = digit ||| between 'a' 'f'
+oct-digit : `RE` = between '0' '7'
+bin-digit : `RE` = char '0' ||| char '1'
 
 lident : `RE` = lower >>> many ident-char >>> (keywords lident-keywords ||| accept LIdent)
 uident : `RE` = upper >>> many ident-char >>> (keywords uident-keywords ||| accept UIdent)
@@ -395,92 +398,3 @@ operator >>> = followed-by infixr 4.0
 followed-by : `RE -> RE -> RE` = \f g -> \st -> case f st of
   Err -> Err
   Ok st' -> g st'
-
-hex-digit : `RE` = digit ||| between 'a' 'f'
-oct-digit : `RE` = between '0' '7'
-bin-digit : `RE` = char '0' ||| char '1'
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-;; type St = Record
-;;   next-char: Sum
-;;     Ch: Char
-;;     EOF
-;;   buf: Pointer Char
-;;   fd: FileDescr
-;;
-;;
-;; type FileDescr = Pointer (Opaque "FILE")
-;;
-;; c-fopen = extern "fopen" `((Pointer Char, Pointer Char) -> FileDescr)`
-;; c-fread = extern "fread" `(Pointer Char, Size, Size, FileDescr) -> Size`
-;; c-fgetc = extern "fgetc" `FileDescr -> Int`
-;; c-fclose = extern "fclose" `FileDescr -> Int`
-;;
-;; fopen = \fn mode -> c-fopen (cast fn `Pointer Char`, cast mode `Pointer Char`)
-;; fread = \p n fd -> do
-;;   c-fread (cast p `Pointer Char`, cast n `Size`, cast 1 `Size`, fd)
-;;
-;; fclose = \fd -> c-fclose fd
-;;
-;; null = \fd -> cast fd `Int` == 0
-;;
-;; main = do
-;;   fd = fopen "examples/lexer-test.fort" "r"
-;;   if
-;;     null fd -> println "ouch"
-;;     otherwise -> do
-;;       p = alloca `Array 1 Char`
-;;       loop (fread p fd) $ \r -> if
-;;         r -> do
-;; 	  println @(p # 0)
-;; 	  Continue (fread p fd)
-;; 	otherwise -> Done ()
-;;       void $ fclose fd
-;;
-;;   println fd
-;;
-

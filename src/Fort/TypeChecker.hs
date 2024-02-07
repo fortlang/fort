@@ -11,6 +11,7 @@ import Fort.Prims
 import Fort.Type hiding (M, evalType_)
 import Fort.Utils
 import Fort.Val (OpSt(..), initOpSt, scalarToVScalar, lookupField)
+import qualified Data.List.NonEmpty as NE
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -39,7 +40,7 @@ evalExported b x = case x of
       TyFun ta tb -> do
         env <- evalDecls ds
         case lookup_ (qnToLIdent q) env of
-          XTyLam env' [Immediate _ pat] e -> do
+          XTyLam env' (Immediate _ pat) e -> do
             env'' <- match pat (positionOf t, ta)
             tr <- eval (env'' <> env') e
             void $ unify (positionOf q, tr) (positionOf t, tb)
@@ -70,8 +71,8 @@ freshUnknown = do
 
 type M a = StateT TCSt (StateT OpSt (StateT TySt IO)) a
 
-evalFieldDecls :: TyEnv -> [FieldDecl] -> M (Map LIdent Ty)
-evalFieldDecls env bs = Map.fromList <$> sequence [ (fld, ) <$> eval env a | FieldDecl _ fld a <- bs ]
+evalFieldDecls :: TyEnv -> NonEmpty FieldDecl -> M (Map LIdent Ty)
+evalFieldDecls env bs = Map.fromList <$> sequence [ (fld, ) <$> eval env a | FieldDecl _ fld a <- toList bs ]
 
 freshTyUnknown :: LIdent -> M Ty
 freshTyUnknown fn = XTyUnknown fn <$> freshUnknown
@@ -82,8 +83,8 @@ tailRecDeclNm (TailRecDecl _ nm _ _) = nm
 mkTailRecTyFun :: Ty -> Ty
 mkTailRecTyFun t = TyFun t TyNone
 
-evalTailRecDecls :: TyEnv -> LIdent -> Ty -> [TailRecDecl] -> M Ty
-evalTailRecDecls env nm t = goTailRecDecls mempty env [(nm, t)]
+evalTailRecDecls :: TyEnv -> LIdent -> Ty -> NonEmpty TailRecDecl -> M Ty
+evalTailRecDecls env nm t = goTailRecDecls mempty env [(nm, t)] . toList
 
 goTailRecDecls :: [Ty] -> Map LIdent Ty -> [(LIdent, Ty)] -> [TailRecDecl] -> M Ty
 goTailRecDecls rs env xs0 ds0 = case xs0 of
@@ -93,6 +94,7 @@ goTailRecDecls rs env xs0 ds0 = case xs0 of
       xs' <- popConstraints
       goTailRecDecls (r : rs) (Map.insert nm (mkTailRecTyFun t) env) (xs' ++ xs) ds
     a -> unreachable101 "TypeChecker:goTailRecDecls" nm a
+
   _ -> case reverse rs of
     r : _ -> pure r
     a -> unreachable001 "TypeChecker:goTailRecDecls" a
@@ -122,9 +124,8 @@ pushConstraint nm i pt = do
   modify' $ \st -> st{ constraints = Map.insert i (nm, pt'') $ constraints st }
 
 envTailRecDecls :: TyEnv -> TailRecDecls -> M TyEnv
-envTailRecDecls env (TailRecDecls _ ds0) = do
-  let ds = fmap newtypeOf ds0
-  pure $ Map.fromList [ (v, XTyTailRecDecls env ds v) | TailRecDecl _ v _ _ <- ds ]
+envTailRecDecls env (TailRecDecls _ ds) =
+  pure $ Map.fromList [ (v, XTyTailRecDecls env ds v) | TailRecDecl _ v _ _ <- toList ds ]
 
 evalExpDecls :: TyEnv -> [ExpDecl] -> M TyEnv
 evalExpDecls = go
@@ -161,15 +162,17 @@ evalCaseAlt env ty@(pos0, t0) (CaseAlt _ altp e) = case altp of
         Just _ -> err101 "unexpected enum pattern" altp t0
     _ -> err101 "unexpected enum pattern with non-enum type" altp t0
   PScalar _ a -> do
-    _ <- unifies [ty, (positionOf a, typeOf a)]
+    _ <- unify_ ty (positionOf a, typeOf a)
     Just <$> evalWithPos env e
 
 instance Typed Scalar where
   typeOf = typeOf . scalarToVScalar
 
-unifies :: [(Position, Ty)] -> M Ty
-unifies [] = unreachable001 "empty unification" ()
-unifies (x : xs) = snd <$> foldM unify x xs
+unifies :: NonEmpty (Position, Ty) -> M Ty
+unifies (x :| xs) = snd <$> foldM unify x xs
+
+unify_ :: (Position, Ty) -> (Position, Ty) -> M Ty
+unify_ x y = snd <$> unify x y
 
 unify :: (Position, Ty) -> (Position, Ty) -> M (Position, Ty)
 unify (posa, tya0) (posb, tyb0) = do
@@ -187,15 +190,15 @@ unify (posa, tya0) (posb, tyb0) = do
           | otherwise -> pure $ TyRecord o
       (TySum m, TySum n) -> TySum <$> unionWithM goMaybe m n
       (TyTuple bs, TyTuple cs)
-        | length bs == length cs -> TyTuple <$> zipWithM go bs cs
+        | length2 bs == length2 cs -> TyTuple . fromList2 <$> zipWithM go (toList bs) (toList cs)
         | otherwise -> err "tuple types have differing lengths"
       (TyArray sza a, TyArray szb b)
         | sza == szb -> TyArray sza <$> go a b
         | otherwise -> err "array types have differing sizes"
       (TyPointer a, TyPointer b) -> TyPointer <$> go a b
       (TyFun a b, TyFun c d) -> TyFun <$> go a c <*> go b d
-      (XTyLam env vs e, TyFun tyc tyd) -> goLam (posb, tyc) tyd env vs e
-      (TyFun tyc tyd, XTyLam env vs e) -> goLam (posa, tyc) tyd env vs e
+      (XTyLam env bnd e, TyFun tyc tyd) -> goLam (posb, tyc) tyd env bnd e
+      (TyFun tyc tyd, XTyLam env bnd e) -> goLam (posa, tyc) tyd env bnd e
       _ | tya == tyb -> pure tya
       _ -> err "type mismatch"
       where
@@ -208,15 +211,10 @@ unify (posa, tya0) (posb, tyb0) = do
           (Just a, Just b) -> Just <$> go a b
           _ -> err "constructor used as both enum and sum"
 
-        goLam ptyc@(pos, tyc) tyd env vs e = case vs of
-          [] -> unreachable100 "empty lambda in unification" $ Posn pos tyc
-          bnd : rest -> do
-            env' <- matchBinding bnd ptyc
-            let env'' = env' <> env
-            r <- case rest of
-              [] -> eval env'' e
-              _ -> pure $ XTyLam env'' rest e
-            TyFun tyc <$> go tyd r
+        goLam ptyc@(_, tyc) tyd env bnd e = do
+          env' <- matchBinding bnd ptyc
+          let env'' = env' <> env
+          TyFun tyc <$> (eval env'' e >>= go tyd)
 
 matchBinding :: Binding -> (Position, Ty) -> M TyEnv
 matchBinding x ty@(_, t) = case x of
@@ -229,11 +227,11 @@ match p0 ty@(pos, x) = case (p0, x) of
   (PUnit _ , TyUnit) -> pure mempty
   (PTyped _ p pt, _) -> do
     ty' <- evalTypeWithPos pt
-    ty'' <- unifies [ty', ty]
+    ty'' <- unify_ ty' ty
     match p (pos, ty'')
   (PParens _ p, _) -> match p ty
-  (PTuple _ p ps, TyTuple xs) | 1 + length ps == length xs ->
-    Map.unions <$> zipWithM match (fmap newtypeOf (p:ps)) (fmap (pos,) xs)
+  (PTuple _ ps, TyTuple xs) | length2 ps == length2 xs ->
+    Map.unions <$> zipWithM match (toList ps) (fmap (pos,) $ toList xs)
   (PTuple{}, TyPointer (TyTuple xs)) -> match p0 (pos, TyTuple $ fmap TyPointer xs)
   _ -> err101 "pattern incompatible with type" p0 x
 
@@ -268,14 +266,9 @@ eval env x = traceEval x $ case x of
         Right t -> pure t
         Left msg -> err101 msg b vb
 
-      XTyLam env' bnds e -> case bnds of
-        [] -> unreachable101 "empty lambda" a va
-        [bnd] -> do
+      XTyLam env' bnd e -> do
           env'' <- matchBinding bnd (positionOf b, vb)
           eval (env'' <> env') e
-        bnd : rest -> do
-          env'' <- matchBinding bnd (positionOf b, vb)
-          pure $ XTyLam (env'' <> env') rest e
 
       TySum m -> case Map.toList m of
         [(c, Nothing)] -> pure $ TySum $ Map.singleton c $ Just vb
@@ -299,34 +292,39 @@ eval env x = traceEval x $ case x of
     va@(_, ta) <- evalWithPos env a
     unless (isIntTy ta || isTySum ta) $
       err101 "expected integral type in 'case' expression" a ta
-    alts <- catMaybes <$> mapM (evalCaseAlt env va) (fmap newtypeOf bs)
+    alts <- catMaybes <$> mapM (evalCaseAlt env va) (toList bs)
     case alts of
       [] -> err100 "no alternatives match" a
-      _ -> unifies alts
+      _ -> unifies $ NE.fromList alts
 
-  Do _ ss -> evalStmts x env ss
+  Do _ ss -> evalStmts env ss
 
   Where _ a bs -> do
-     let gr = depGraph [ ExpDecl (positionOf b) b | b <- fmap newtypeOf bs ]
+     let gr = depGraph [ ExpDecl (positionOf b) b | b <- toList bs ]
      rds <- reachableDecls gr (Set.fromList $ freeVarsOf a)
      env' <- evalExpDecls env [ ed | ExpDecl _ ed <- rds ]
      eval env' a
 
-  If pos ds -> do
-    let (bs, cs) = List.unzip [ (b, c) | IfBranch _ b c <- fmap newtypeOf ds ]
-    tbs <- mapM (evalWithPos env) bs
-    tcs <- mapM (evalWithPos env) cs
-    _ <- unifies ((pos, TyBool) : tbs)
-    unifies tcs
+  If _ a b c -> do
+    ta <- evalWithPos env a
+    _ <- unify_ (positionOf a, TyBool) ta
+    tb <- evalWithPos env b
+    tc <- evalWithPos env c
+    unify_ tb tc
+
+  Else _ a b -> do
+    ta <- evalWithPos env a
+    _ <- unify_ (positionOf a, TyBool) ta
+    eval env b
 
   EType _ t -> TyType <$> evalType_ t
 
   Typed _ a t -> do
     ta <- evalWithPos env a
     tt <- evalTypeWithPos t
-    unifies [ta, tt]
+    unify_ ta tt
 
-  Tuple _ a bs -> TyTuple <$> mapM (eval env . newtypeOf) (a : bs)
+  Tuple _ bs -> TyTuple <$> mapM (eval env) bs
   Parens _ a -> eval env a
   Unit _ -> pure TyUnit
 
@@ -336,7 +334,7 @@ eval env x = traceEval x $ case x of
     ty <- eval env a
     case ty of
       TyRecord m -> do
-        n <- evalFieldDecls env $ fmap newtypeOf bs
+        n <- evalFieldDecls env bs
         pure $ TyRecord (n `Map.union` m)
       _ -> err101 "expected record in 'with' expression" a ty
 
@@ -357,38 +355,33 @@ eval env x = traceEval x $ case x of
 
   Array _ bs -> do
     cs <- mapM (evalWithPos env) bs
-    TyArray (List.genericLength bs) <$> unifies cs
+    TyArray (toInteger $ NE.length bs) <$> unifies cs
 
   Con _ c -> pure $ TySum $ Map.singleton c Nothing
   Scalar _ a -> pure $ typeOf a
-  XArray{} -> unreachable100 "XArray not removed" x
-  XDot{} -> unreachable100 "XDot not removed" x
-  XRecord{} -> unreachable100 "XRecord not removed" x
 
 evalWithPos :: TyEnv -> Exp -> M (Position, Ty)
 evalWithPos env x = (positionOf x, ) <$> eval env x
 
-evalStmts :: Exp -> TyEnv -> [LayoutElemStmt] -> M Ty
-evalStmts x0 = go
+evalStmts :: TyEnv -> NonEmpty Stmt -> M Ty
+evalStmts = go
   where
-    go env xs = case xs of
-      [] -> unreachable100 "empty 'do'" x0
-      [c] -> case newtypeOf c of
+    go env (c :| cs) = case cs of
+      [] -> case c of
         Stmt _ e -> eval env e
         _ -> err100 "last element of 'do' must be an expression" c
-      c : cs -> case newtypeOf c of
+      _ -> case c of
         Stmt _ e -> do
           vc <- eval env e
           unless (vc == TyUnit) $ err101 "value discarded in 'do' expression" c vc
-          go env cs
+          go env $ NE.fromList cs
         Let _ p e -> do
           te <- eval env e
           env' <- match p (positionOf e, te)
-          go (env' <> env) cs
+          go (env' <> env) $ NE.fromList cs
         TailRecLet _ a -> do
           env' <- envTailRecDecls env a
-          go (env' <> env) cs
-        XLet{} -> unreachable100 "XLet not removed" c
+          go (env' <> env) $ NE.fromList cs
 
 
 

@@ -9,7 +9,7 @@ module Fort.FIL
 where
 
 import Data.Bifunctor
-import Fort.Utils hiding (Stmt'(..), Exp'(..), Decl, Stmt, TailRecDecls'(..), Scalar, Scalar'(..))
+import Fort.Utils hiding (If, Extern, UInt, Let, TailRecDecls, Decl, Scalar, Unit, Stmt)
 import Fort.Val (RegisterId, VScalar(..), VStmt(..), VDecl(..), TailCallId(..))
 import qualified Data.Map as Map
 import qualified Fort.Type as Type
@@ -25,7 +25,7 @@ filFunc x = Func
   { retTy = fromTy $ Val.retTy x
   , args = fmap fromVal $ case Val.arg x of
       Val.VUnit -> []
-      Val.VTuple vs -> vs
+      Val.VTuple vs -> toList vs
       v -> [v]
   , body = fromBlock $ rewriteBi Val.flattenVal $ Val.body x
   }
@@ -174,7 +174,7 @@ fromStmt x = case x of
 
 fromTuple :: Val.Val -> [Val]
 fromTuple x = fmap fromVal $ filter (not . Val.isNone) $ case x of
-  Val.VTuple bs -> bs
+  Val.VTuple bs -> toList bs
   _ -> [x]
 
 fromBlock :: Val.Block -> Block

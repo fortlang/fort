@@ -5,7 +5,7 @@ module Fort.LLVM (llvmModules, BuildType(..))
 where
 
 import Fort.FIL (Register(..), RegisterId(..), Scalar(..), Val(..), Ty(..), TailCallId(..))
-import Fort.Utils hiding (Stmt, Exp'(..), Scalar, Scalar'(..))
+import Fort.Utils hiding (Stmt, Extern, UInt, Scalar, Unit)
 import Numeric
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -506,7 +506,9 @@ intrinsicName x rt ts = "@llvm." <> nm <> extra <> "." <> llvm t
       Memmove -> t2
       Memcpy -> t2
       _ -> rt
-    t2 = ts !! 2
+    t2 = case ts of
+      _ : _ : a : _ -> a
+      _ -> unreachable "expected 3 arguments to memset/memmove/memcpy" ts
     nm = case x of
       Abs -> if
         | FIL.isTyFloat rt -> "fabs"

@@ -340,11 +340,11 @@ instance Print (Fort.Abs.Decl' a) where
 
 instance Print (Fort.Abs.Exp' a) where
   prt i = \case
-    Fort.Abs.Lam _ bindings exp -> prPrec i 0 (concatD [doc (showString "\\"), prt 0 bindings, doc (showString "->"), prt 0 exp])
-    Fort.Abs.Where _ exp layoutelemexpdecls -> prPrec i 1 (concatD [prt 1 exp, doc (showString "where"), doc (showString "{"), prt 0 layoutelemexpdecls, doc (showString "}")])
+    Fort.Abs.Where _ exp layoutelemexpdecls -> prPrec i 0 (concatD [prt 1 exp, doc (showString "where"), doc (showString "{"), prt 0 layoutelemexpdecls, doc (showString "}")])
+    Fort.Abs.Lam _ bindings exp -> prPrec i 1 (concatD [doc (showString "\\"), prt 0 bindings, doc (showString "->"), prt 1 exp])
     Fort.Abs.Typed _ exp type_ -> prPrec i 2 (concatD [prt 2 exp, doc (showString ":"), doc (showString "`"), prt 0 type_, doc (showString "`")])
     Fort.Abs.With _ exp layoutelemfielddecls -> prPrec i 3 (concatD [prt 3 exp, doc (showString "with"), doc (showString "{"), prt 0 layoutelemfielddecls, doc (showString "}")])
-    Fort.Abs.InfixOper _ exp1 infixop exp2 -> prPrec i 4 (concatD [prt 4 exp1, prt 0 infixop, prt 0 exp2])
+    Fort.Abs.InfixOper _ exp1 infixop exp2 -> prPrec i 4 (concatD [prt 4 exp1, prt 0 infixop, prt 1 exp2])
     Fort.Abs.App _ exp1 exp2 -> prPrec i 5 (concatD [prt 5 exp1, prt 6 exp2])
     Fort.Abs.PrefixOper _ prefixop exp -> prPrec i 6 (concatD [prt 0 prefixop, prt 7 exp])
     Fort.Abs.Array _ exps -> prPrec i 7 (concatD [doc (showString "["), prt 0 exps, doc (showString "]")])
@@ -355,10 +355,8 @@ instance Print (Fort.Abs.Exp' a) where
     Fort.Abs.Extern _ astring type_ -> prPrec i 7 (concatD [doc (showString "extern"), prt 0 astring, doc (showString "`"), prt 0 type_, doc (showString "`")])
     Fort.Abs.If _ layoutelemifbranchs -> prPrec i 7 (concatD [doc (showString "if"), doc (showString "{"), prt 0 layoutelemifbranchs, doc (showString "}")])
     Fort.Abs.Parens _ exp -> prPrec i 7 (concatD [doc (showString "("), prt 0 exp, doc (showString ")")])
-    Fort.Abs.Qualified _ uident lident -> prPrec i 7 (concatD [prt 0 uident, doc (showString "."), prt 0 lident])
     Fort.Abs.Record _ fielddecls -> prPrec i 7 (concatD [doc (showString "{"), prt 0 fielddecls, doc (showString "}")])
     Fort.Abs.Scalar _ scalar -> prPrec i 7 (concatD [prt 0 scalar])
-    Fort.Abs.Select _ exp lident -> prPrec i 7 (concatD [prt 0 exp, doc (showString "."), prt 0 lident])
     Fort.Abs.Tuple _ tupleelemexp tupleelemexps -> prPrec i 7 (concatD [doc (showString "("), prt 0 tupleelemexp, doc (showString ","), prt 0 tupleelemexps, doc (showString ")")])
     Fort.Abs.Unit _ -> prPrec i 7 (concatD [doc (showString "()")])
     Fort.Abs.Var _ lident -> prPrec i 7 (concatD [prt 0 lident])
@@ -431,7 +429,6 @@ instance Print (Fort.Abs.Size' a) where
 
 instance Print (Fort.Abs.Stmt' a) where
   prt i = \case
-    Fort.Abs.Let _ pat exp -> prPrec i 0 (concatD [prt 0 pat, doc (showString "="), prt 0 exp])
     Fort.Abs.Stmt _ exp -> prPrec i 0 (concatD [prt 0 exp])
     Fort.Abs.TailRecLet _ tailrecdecls -> prPrec i 0 (concatD [prt 0 tailrecdecls])
     Fort.Abs.XLet _ exp1 exp2 -> prPrec i 0 (concatD [prt 0 exp1, doc (showString "="), prt 0 exp2])
@@ -447,7 +444,7 @@ instance Print (Fort.Abs.TSum' a) where
 
 instance Print (Fort.Abs.TailRecDecl' a) where
   prt i = \case
-    Fort.Abs.TailRecDecl _ lident1 lident2 exp -> prPrec i 0 (concatD [prt 0 lident1, doc (showString "="), doc (showString "\\"), prt 0 lident2, doc (showString "->"), prt 1 exp])
+    Fort.Abs.TailRecDecl _ lident1 lident2 exp -> prPrec i 0 (concatD [prt 0 lident1, doc (showString "="), doc (showString "\\"), prt 0 lident2, doc (showString "->"), prt 2 exp])
 
 instance Print (Fort.Abs.TailRecDecls' a) where
   prt i = \case

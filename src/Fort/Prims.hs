@@ -72,7 +72,7 @@ primCallTys = Map.fromList $ fmap f
 
 isTriple :: (Ty -> Ty -> Ty -> Err a) -> Ty -> Err a
 isTriple f x = case x of
-  TyTuple [a, b, c] -> f a b c
+  TyTuple (Cons2 a (b :| [c])) -> f a b c
   _ -> throwError "expected 3-tuple of values"
 
 isI32orI64Ty :: Ty -> Bool
@@ -118,8 +118,8 @@ isSmallerOrEq x y = case (x, y) of
   (TyEnum bs, TyEnum cs) -> bs `Set.isSubsetOf` cs
   _ | isRegisterTy x -> x == y
   (TyArray sza a, TyArray szb b) -> sza == szb && isSmallerOrEq a b
-  (TyTuple bs, TyTuple cs) -> length bs == length cs &&
-    and (zipWith isSmallerOrEq bs cs)
+  (TyTuple bs, TyTuple cs) -> length2 bs == length2 cs &&
+    and (zipWith isSmallerOrEq (toList bs) (toList cs))
   (TyRecord m, TyRecord n) | n `isEqualByKeys` m ->
     Map.isSubmapOfBy isSmallerOrEq m n
   (TySum m, TySum n) -> Map.isSubmapOfBy sumTyIsSmallerOrEq m n
@@ -163,7 +163,7 @@ eqTys x y = case (x, y) of
   (TyRecord m, TyRecord n) -> List.sort (Map.keys m) == List.sort (Map.keys n) && and bs
     where
       bs = Map.elems $ Map.intersectionWith eqTys m n
-  (TyTuple bs, TyTuple cs) -> length bs == length cs && and (uncurry eqTys <$> zip bs cs)
+  (TyTuple bs, TyTuple cs) -> length2 bs == length2 cs && and (uncurry eqTys <$> zip (toList bs) (toList cs))
   (TyArray sza a, TyArray szb b) -> sza == szb && eqTys a b
   _ -> x == y
 
@@ -179,7 +179,7 @@ neg t = if
 
 isPair :: (Ty -> Ty -> Err a) -> Ty -> Err a
 isPair f t = case t of
-  TyTuple [a, b] -> f a b
+  TyTuple (Cons2 a (b :| [])) -> f a b
   _ -> throwError "expected pair of values"
 
 isSameSz :: (Ty -> Ty -> Err a) -> Ty -> Ty -> Err a
@@ -247,7 +247,7 @@ isTyFloat x = case x of
   _ -> False
 
 primCall2 :: Text -> Val -> Val -> M Val
-primCall2 nm a b = lookup_ (mkTok noPosition nm) primCalls $ VTuple [a, b]
+primCall2 nm a b = lookup_ (mkTok noPosition nm) primCalls $ VTuple $ fromList2 [a, b]
 
 gte :: Val -> Val -> M Val
 gte = primCall2 "Prim.gte"
@@ -335,7 +335,7 @@ neSumDataVals m (c, mv) = case (mv, Map.lookup c m) of
 neVal :: Val -> Val -> M Val
 neVal x y = case (x, y) of
   (VTuple bs, VTuple cs) -> do
-    vs <- zipWithM neVal bs cs
+    vs <- zipWithM neVal (toList bs) (toList cs)
     foldM orVal (VScalar $ VBool False) vs
   (VRecord m, VRecord n) | isEqualByKeys m n -> do
     vs <- intersectionWithM neVal m n
@@ -345,7 +345,7 @@ neVal x y = case (x, y) of
       blkt <- evalBlockM (evalSumAlts b m $ neSumDataVals n)
       blkf <- evalBlockM (pure $ VScalar $ VBool True)
       evalIf eqv blkt blkf
-  _ | isRegisterVal x && isRegisterVal y -> boolFun2 "Prim.ne" $ VTuple [x, y]
+  _ | isRegisterVal x && isRegisterVal y -> boolFun2 "Prim.ne" $ VTuple $ fromList2 [x, y]
   _ -> err101 "unexpected values to Prim.ne" (noPos (x, y)) noTCHint
 
 eqSumDataVals :: Map UIdent (Maybe Val) -> (UIdent, Maybe Val) -> M Val
@@ -357,7 +357,7 @@ eqSumDataVals m (c, mv) = case (mv, Map.lookup c m) of
 eqVal :: Val -> Val -> M Val
 eqVal x y = case (x, y) of
   (VTuple bs, VTuple cs) -> do
-    vs <- zipWithM eqVal bs cs
+    vs <- zipWithM eqVal (toList bs) (toList cs)
     foldM andVal (VScalar $ VBool True) vs
   (VRecord m, VRecord n) | isEqualByKeys m n -> do
     vs <- intersectionWithM eqVal m n
@@ -367,7 +367,7 @@ eqVal x y = case (x, y) of
     blkt <- evalBlockM (evalSumAlts b m $ eqSumDataVals n)
     blkf <- evalBlockM (pure $ VScalar $ VBool False)
     evalIf eqv blkt blkf
-  _ | isRegisterVal x && isRegisterVal y -> boolFun2 "Prim.eq" $ VTuple [x, y]
+  _ | isRegisterVal x && isRegisterVal y -> boolFun2 "Prim.eq" $ VTuple $ fromList2 [x, y]
   _ -> err101 "unexpected values to Prim.eq" (noPos (x, y)) noTCHint
 
 printPrim :: Val -> M ()
@@ -491,7 +491,7 @@ store p0 x0 = case p0 of
   where
     go p x = case (p, x) of
       (VTuple ps, VTuple bs) -> do
-        zipWithM_ go ps bs
+        zipWithM_ go (toList ps) $ toList bs
         pure VUnit
       (VRecord ps, VRecord bs) | isEqualByKeys ps bs -> do
         void $ intersectionWithM go ps bs
@@ -501,8 +501,8 @@ store p0 x0 = case p0 of
         void $ intersectionWithM goSumDataVal m n
         pure VUnit
       (VScalar a, _) -> storeScalar a x
-      (VIndexed _ sz r, VArray _ vs) | List.genericLength vs == sz -> do
-          zipWithM_ (goValAtIndex r) vs [0..]
+      (VIndexed _ sz r, VArray _ vs) | List.genericLength (toList vs) == sz -> do
+          zipWithM_ (goValAtIndex r) (toList vs) [0..]
           pure VUnit
       _ -> err111 "unexpected values to 'store'" (noPos p) (noPos x) noTCHint
 
@@ -518,7 +518,7 @@ store p0 x0 = case p0 of
 storeScalar :: VScalar -> Val -> M Val
 storeScalar p x = case typeOf p of
   TyPointer ta | isRegisterTy ta && typeOf x `isSmallerOrEq` ta ->
-    fun2 (\_ _ -> pure TyUnit) "Prim.store" $ VTuple [ VScalar p, x ]
+    fun2 (\_ _ -> pure TyUnit) "Prim.store" $ VTuple $ fromList2 [ VScalar p, x ]
   t -> err111 "unexpected type to 'store'" (noPos t) (noPos p) noTCHint
 
 bitsize :: Ty -> Sz
@@ -552,7 +552,7 @@ indexScalar :: VScalar -> Val -> M Val
 indexScalar x i = case typeOf x of
   TyPointer (TyArray sz t) -> do
     indexAsserts i sz
-    fun2 (\_ _ -> pure $ TyPointer t) "Prim.index" $ VTuple [VScalar x, i]
+    fun2 (\_ _ -> pure $ TyPointer t) "Prim.index" $ VTuple $ fromList2 [VScalar x, i]
   t -> err111 "unexpected type of value to 'index'" (noPos t) (noPos x) noTCHint
 
 indexAsserts :: Val -> Sz -> M ()
@@ -582,7 +582,7 @@ printVal :: Val -> M ()
 printVal x = case x of
   VTuple bs -> do
     printChLit '('
-    printSep ", " printVal bs
+    printSep ", " printVal $ toList bs
     printChLit ')'
 
   VRecord m -> do
@@ -602,7 +602,7 @@ printVal x = case x of
 
   VArray _ vs -> do
     printChLit '['
-    printSep ", " printVal vs
+    printSep ", " printVal $ toList vs
     printChLit ']'
 
   VUnit -> printStrLit "()"
@@ -630,7 +630,7 @@ cast :: Val -> Val -> M Val
 cast x y = do
   t <- vTypeToTy y
   if
-    | isRegisterVal x && isRegisterTy t -> fun2 (\_ b -> vTypeToTy b) "Prim.cast" $ VTuple [x, y]
+    | isRegisterVal x && isRegisterTy t -> fun2 (\_ b -> vTypeToTy b) "Prim.cast" $ VTuple $ fromList2 [x, y]
     | typeOf x `isSmallerOrEq` t -> do
         v <- freshUndefVal t
         unionVals x v
@@ -656,14 +656,14 @@ idFun1 = fun1 id
 
 memFun :: Text -> Val -> M Val
 memFun nm x = case x of
-  VTuple [a, b, c] -> do
-    pushDecl $ VLet VUnit $ VCall (mkTok noPosition nm) $ VTuple [a, b, c, VScalar $ VBool False]
+  VTuple (Cons2 a (b :| [c])) -> do
+    pushDecl $ VLet VUnit $ VCall (mkTok noPosition nm) $ VTuple $ fromList2 [a, b, c, VScalar $ VBool False]
     pure VUnit
   _ -> err101 "expected 3-tuple argument to memFun" (noPos x) noTCHint
 
 pairFun :: (Val -> Val -> M Val) -> Val -> M Val
 pairFun f x = case x of
-  VTuple [a, b] -> f a b
+  VTuple (Cons2 a (b :| [])) -> f a b
   _ -> err101 "expected pair argument to pairFun" (noPos x) noTCHint
 
 fun1 :: (Ty -> Ty) -> Text -> Val -> M Val
@@ -685,7 +685,7 @@ boolFun2 = fun2 (\_ _ -> pure TyBool)
 fun2 :: (Ty -> Val -> M Ty) -> Text -> Val -> M Val
 fun2 resTy nm = pairFun $ \a b -> do
   rt <- resTy (typeOf a) b
-  fun rt (mkTok noPosition nm) $ VTuple [a, b]
+  fun rt (mkTok noPosition nm) $ VTuple $ fromList2 [a, b]
 
 switchValOf :: Val -> M Val
 switchValOf x = case x of

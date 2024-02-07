@@ -126,7 +126,8 @@ parseModules opts = go mempty mempty
         Nothing -> do
           putStr "parsing "
           putStrLn fn
-          m <- parseModule (showLexer opts) myLexer resolveLayout pModule fn
+          absm <- parseModule (showLexer opts) myLexer resolveLayout pModule fn
+          m <- toModule absm
           let qs = [ (q, read $ Text.unpack $ textOf s) | QualDecl _ q s <- universeBi m ]
           go (qs ++ quals) (Map.insert fn m tbl) (fmap snd qs ++ fns)
         Just _ -> go quals tbl fns

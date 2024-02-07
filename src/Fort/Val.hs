@@ -1,13 +1,18 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Redundant multi-way if" #-}
+{-# LANGUAGE PatternSynonyms #-}
+
 module Fort.Val (module Fort.Val)
 
 where
 
 import Fort.Type hiding (M)
 import Fort.Utils
+import Fort.FunctorAST (pattern Char, pattern Int, pattern String)
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 
 pushDecl :: VDecl -> M ()
 pushDecl x = modify' $ \st -> st{ decls = x : decls st }
@@ -51,8 +56,8 @@ templateOfVals x y = case (x, y) of
   (_, XVNone) -> pure x
   _ | x == y -> pure x
   (VRecord bs, VRecord cs) -> VRecord <$> intersectionWithM templateOfVals bs cs
-  (VArray t bs, VArray _ cs) | length bs == length cs -> VArray t <$> zipWithM templateOfVals bs cs
-  (VTuple bs, VTuple cs) | length bs == length cs -> VTuple <$> zipWithM templateOfVals bs cs
+  (VArray t bs, VArray _ cs) | NE.length bs == NE.length cs -> VArray t . NE.fromList <$> zipWithM templateOfVals (toList bs) (toList cs)
+  (VTuple bs, VTuple cs) | length2 bs == length2 cs -> VTuple . fromList2 <$> zipWithM templateOfVals (toList bs) (toList cs)
   (VSum mb bs, VSum mc cs) -> do
     bs' <- extendSum bs cs
     cs' <- extendSum cs bs
@@ -80,8 +85,8 @@ instantiateWithUndef x = case x of
 unionVals :: Val -> Val -> M Val -- left biased union
 unionVals x y = case (x, y) of
   (VRecord bs, VRecord cs) -> VRecord <$> intersectionWithM unionVals bs cs
-  (VArray t bs, VArray _ cs) | length bs == length cs -> VArray t <$> zipWithM unionVals bs cs
-  (VTuple bs, VTuple cs) | length bs == length cs -> VTuple <$> zipWithM unionVals bs cs
+  (VArray t bs, VArray _ cs) | NE.length bs == NE.length cs -> VArray t . NE.fromList <$> zipWithM unionVals (toList bs) (toList cs)
+  (VTuple bs, VTuple cs) | length2 bs == length2 cs -> VTuple . fromList2 <$> zipWithM unionVals (toList bs) (toList cs)
   (VSum k bs, VSum l cs) -> VSum <$> unionVals k l <*> unionWithM (joinSumDataVals unionVals) bs cs
   (VPtr t a, VPtr _ b) -> VPtr t <$> unionVals a b
   (VIndexed t sz a, VIndexed _ _ b) -> VIndexed t sz <$> unionVals a b
@@ -200,7 +205,7 @@ initSt b = St
 
 data Val
   -- these should be eliminated during evalType
-  = XVLam Env [Binding] Exp -- at the end of eval all lambdas have been eliminated
+  = XVLam Env Binding Exp -- at the end of eval all lambdas have been eliminated
   | XVDelay Env Exp -- think of this as a rewrite from v to \() -> v so it won't evaluate immediately and can be used repeatedly (i.e. to repeat side-effecting calls)
   | XVTailRecDecls Env (Map LIdent TailRecDecl) LIdent
   | XVTailCall TailCallId
@@ -209,10 +214,10 @@ data Val
   -- at then end, only these remain
   | VType Ty
   -- constructed values
-  | VArray Ty [Val]
+  | VArray Ty (NonEmpty Val)
   | VRecord (Map LIdent Val)
   | VSum Val (Map UIdent (Maybe Val))
-  | VTuple [Val] -- 2 or more
+  | VTuple (NonEmpty2 Val)
   | VIndexed Ty Sz Val
   | VPtr Ty Val
   | VUnit
@@ -316,8 +321,8 @@ instance Pretty Val where
     VRecord m -> "record" <+> pretty m
     VSum con m -> vlist "sum" [ "Tag:" <+> pretty con, "UNION:" <+> pretty m ]
     VType t -> "`" <> pretty t <> "`"
-    VArray _ vs -> list $ fmap pretty vs
-    VTuple vs -> tupled $ fmap pretty vs
+    VArray _ vs -> nelist $ fmap pretty vs
+    VTuple vs -> tupled2 $ fmap pretty vs
     VUnit -> "()"
     VScalar a -> pretty a
     VPtr _ a -> "<ptr = " <> pretty a <> ">"
@@ -366,9 +371,9 @@ instance Typed VScalar where
 
 scalarToVScalar :: Scalar -> VScalar
 scalarToVScalar x = case x of
-  Char _ v -> VChar $ valOf v
+  Char _ t -> VChar $ read $ Text.unpack t
   Double _ v -> VFloat $ valOf v
-  Int _ v -> VInt $ valOf v
+  Int _ t -> VInt $ read $ Text.unpack t
   String _ v -> VString $ valOf v
   UInt _ v -> case v of
     Dec{} -> VInt $ valOf v
@@ -381,14 +386,14 @@ isRegisterVal = isRegisterTy . typeOf
 
 flattenVTuple :: Val -> [Val]
 flattenVTuple x = case x of
-  VTuple vs -> vs
+  VTuple vs -> toList vs
   _ -> [x]
 
 flattenVal :: Val -> Maybe Val
 flattenVal x = case x of
   VRecord m -> f $ fmap snd $ sortByFst $ Map.toList m
   VSum k m -> f (k : fmap snd (sortByFst [ (con, v) | (con, Just v) <- Map.toList m ]))
-  VArray _ vs -> f vs
+  VArray _ vs -> f $ toList vs
   VTuple vs | all isFlatVal vs -> Nothing
   VTuple vs -> f $ concatMap flattenVTuple vs
   VPtr _ a -> Just a
@@ -406,8 +411,9 @@ flattenVal x = case x of
 
 mkVTuple :: [Val] -> Val
 mkVTuple xs = case xs of
+  [] -> unreachable "empty tuple" ()
   [x] -> x
-  _ -> VTuple xs
+  x : y : rest -> VTuple (cons2 x (y :| rest))
 
 isSwitchVal :: Val -> Bool
 isSwitchVal = isSwitchTy . typeOf

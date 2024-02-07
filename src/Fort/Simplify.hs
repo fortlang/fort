@@ -8,13 +8,14 @@ module Fort.Simplify
 , pushDecl
 ) where
 
+import Data.Bifunctor
 import Fort.Dependencies
 import Fort.FreeVars
 import Fort.Prims
 import Fort.Type hiding (M, evalType_)
 import Fort.Utils
 import Fort.Val
-import qualified Data.List as List
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Fort.Type as Type
@@ -23,7 +24,7 @@ import qualified Fort.TypeChecker as TC
 evalType_ :: Type -> M Ty
 evalType_ = lift . lift . lift . Type.evalType_
 
-unifies :: [(Position, Ty)] -> M Ty
+unifies :: NonEmpty (Position, Ty) -> M Ty
 unifies = lift . TC.unifies
 
 evalSt :: Bool -> [Decl] -> M a -> IO a
@@ -45,10 +46,10 @@ mainArgOf xs = do
   case (margc, margv) of
     (Nothing, Nothing) -> pure VUnit
     (Just argc, Nothing) -> pure argc
-    (Just argc, Just argv) -> pure $ VTuple [argc, argv]
+    (Just argc, Just argv) -> pure $ VTuple $ fromList2 [argc, argv]
     (Nothing, Just argv) -> do
       argc <- freshVal $ TyInt 32
-      pure $ VTuple [argc, argv]
+      pure $ VTuple $ fromList2 [argc, argv]
   where
     ss = [ (textOf s, (e, t)) | e@(Extern _ (s :: AString) t) <- universeBi xs ]
     lookupArg nm = case lookup nm ss of
@@ -84,7 +85,7 @@ simplifyFunc ssb x = case x of
     env <- evalExpDecls (initEnv ssb) [ a | ExpDecl _ a <- ds ]
     let val = lookup_ (qnToLIdent q) env
     case (val, ty) of
-      (XVLam env' [Immediate _ pat] e, TyFun ta tb) -> do
+      (XVLam env' (Immediate _ pat) e, TyFun ta tb) -> do
         va <- freshVal ta
         env'' <- match pat va
         r <- eval (env'' <> env') e
@@ -163,13 +164,13 @@ evalTailRecDecls :: Env -> TailRecDecls -> Env
 evalTailRecDecls env (TailRecDecls _ ds) =
   Map.mapWithKey (\k _ -> XVTailRecDecls env m k) m
   where
-    m = Map.fromList [ (nm, b) | b@(TailRecDecl _ nm _ _) <- fmap newtypeOf ds ]
+    m = Map.fromList [ (nm, b) | b@(TailRecDecl _ nm _ _) <- toList ds ]
 
 evalFieldDecl :: Env -> FieldDecl -> M (LIdent, Val)
 evalFieldDecl env (FieldDecl _ lbl e) = (lbl, ) <$> eval env e
 
-evalFieldDecls :: Env -> [FieldDecl] -> M (Map LIdent Val)
-evalFieldDecls env xs = Map.fromList <$> mapM (evalFieldDecl env) xs
+evalFieldDecls :: Env -> NonEmpty FieldDecl -> M (Map LIdent Val)
+evalFieldDecls env xs = Map.fromList <$> mapM (evalFieldDecl env) (toList xs)
 
 match :: Pat -> Val -> M Env
 match p0 x = case (p0, x) of
@@ -177,9 +178,8 @@ match p0 x = case (p0, x) of
   (PUnit _ , VUnit) -> pure mempty
   (PTyped _ p _, _) -> match p x
   (PParens _ p, _) -> match p x
-  (PTuple _ b bs, VTuple xs) | length ps == length xs ->
-    Map.unions <$> zipWithM match (fmap newtypeOf ps) xs
-    where ps = b : bs
+  (PTuple _ ps, VTuple xs) | length2 ps == length2 xs ->
+    Map.unions <$> zipWithM match (toList ps) (toList xs)
   (PTuple{}, VPtr _ (VTuple xs)) -> match p0 $ VTuple $ fmap mkVPtr xs
   _ -> err101 "pattern match failure" p0 x
 
@@ -248,17 +248,13 @@ eval env x = case x of
           pushDecl $ VLet r $ VCallTailCall tcid vb
           pure r
 
-        XVLam env' vs e -> case vs of
-          [] -> unreachable101 "empty lambda expression" a va
-          bnd : rest -> do
+        XVLam env' bnd e -> do
             let bnd' = case bnd of
                   Immediate _ (PVar pos var) | canBeDelayed var e -> Delayed pos var
                   _ -> bnd
             env'' <- evalBinding env bnd' b
             let env''' = env'' <> env'
-            case rest of
-              [] -> eval env''' e
-              _ -> pure $ XVLam env''' rest e
+            eval env''' e
 
         VSum con m -> do
           vb <- eval env b
@@ -279,59 +275,54 @@ eval env x = case x of
 
     Case _ a bs -> do
       va <- eval env a
-      alts <- catMaybes <$> mapM (evalCaseAlt env va) (fmap newtypeOf bs)
+      alts <- catMaybes <$> mapM (evalCaseAlt env va) (toList bs)
       evalSwitch va alts
 
-    Do _ [] -> unreachable100 "empty 'do'" x
-    Do _ [c] -> case newtypeOf c of
-      Stmt _ e -> eval env e
-      _ -> err100 "last element of 'do' expression must be an expression" c
-
-    Do pos (c : cs) -> case newtypeOf c of
-      Stmt _ e -> do
-        vc <- eval env e
-        case vc of
-          VUnit -> pure ()
-          _ -> err101 "value discarded in 'do' expression" c vc
-        eval env $ Do pos cs
-      Let _ p e -> do
-        env' <- eval env e >>= match p
-        eval (env' <> env) $ Do pos cs
-      TailRecLet _ a -> do
-        let env' = evalTailRecDecls env a
-        eval (env' <> env) $ Do pos cs
-      XLet{} -> unreachable100 "XLet not removed" c
+    Do pos (c :| cs) -> case cs of
+      [] -> case c of
+        Stmt _ e -> eval env e
+        _ -> err100 "last element of 'do' expression must be an expression" c
+      _ -> case c of
+        Stmt _ e -> do
+          vc <- eval env e
+          case vc of
+            VUnit -> pure ()
+            _ -> err101 "value discarded in 'do' expression" c vc
+          eval env $ Do pos $ NE.fromList cs
+        Let _ p e -> do
+          env' <- eval env e >>= match p
+          eval (env' <> env) $ Do pos $ NE.fromList cs
+        TailRecLet _ a -> do
+          let env' = evalTailRecDecls env a
+          eval (env' <> env) $ Do pos $ NE.fromList cs
 
     Where _ a bs -> do
-       let gr = depGraph [ ExpDecl (positionOf b) b | b <- fmap newtypeOf bs ]
+       let gr = depGraph [ ExpDecl (positionOf b) b | b <- toList bs ]
        rds <- reachableDecls gr (Set.fromList $ freeVarsOf a)
        env' <- evalExpDecls env [ ed | ExpDecl _ ed <- rds ]
        eval env' a
 
-    If _ [] -> unreachable100 "empty 'if' expression" x
-    If _ [c] -> do
-      let IfBranch _ a b = newtypeOf c
-      _ <- eval env a >>= assertWithMessage "'if' is never true"
-      eval env b
-
-    If pos (c : cs) -> do
-      let IfBranch _ a b = newtypeOf c
+    If _ a b c -> do
       va <- eval env a
       blkb <- evalBlock env b
-      blkcs <- evalBlock env $ If pos cs
-      evalIf va blkb blkcs
+      blkc <- evalBlock env c
+      evalIf va blkb blkc
+
+    Else _ a b -> do
+      _ <- eval env a >>= assertWithMessage "'if' is never true"
+      eval env b
 
     EType _ a -> VType <$> evalType_ a
 
     Typed _ a _ -> eval env a
 
-    Record _ bs -> VRecord . Map.fromList <$> mapM (evalFieldDecl env) bs
+    Record _ bs -> VRecord . Map.fromList <$> mapM (evalFieldDecl env) (toList bs)
 
     With _ a bs -> do
       val <- eval env a
       case val of
         VRecord m -> do
-          n <- evalFieldDecls env (fmap newtypeOf bs)
+          n <- evalFieldDecls env bs
           pure $ VRecord (n `Map.union` m)
         _ -> err101 "expected record in 'with' expression" a (typeOf val)
 
@@ -351,10 +342,10 @@ eval env x = case x of
       eval env $ App pos (App pos (Var pos $ lookup_ op tbl) a) b
 
     Array _ bs -> do
-      vs <- mapM (eval env) bs
-      t <- unifies $ zip (fmap positionOf bs) $ fmap typeOf vs
-      pure $ VArray (TyArray (List.genericLength bs) t) vs
-    Tuple _ a bs -> VTuple <$> mapM (eval env . newtypeOf) (a : bs)
+      vs <- mapM (evalWithPos env) bs
+      t <- unifies $ fmap (second typeOf) vs
+      pure $ VArray (TyArray (fromIntegral $ NE.length bs) t) $ fmap snd vs
+    Tuple _ bs -> VTuple <$> mapM (eval env) bs
     Parens _ a -> eval env a
     Unit _ -> pure VUnit
 
@@ -364,7 +355,6 @@ eval env x = case x of
 
     Scalar _ a -> pure $ VScalar $ scalarToVScalar a
 
-    XArray{} -> unreachable100 "XArray not removed" x
-    XDot{} -> unreachable100 "XDot not removed" x
-    XRecord{} -> unreachable100 "XRecord not removed" x
+evalWithPos :: Env -> Exp -> M (Position, Val)
+evalWithPos env x = (positionOf x, ) <$> eval env x
 

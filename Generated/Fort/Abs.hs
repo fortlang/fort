@@ -112,8 +112,8 @@ data Decl' a
 
 type Exp = Exp' BNFC'Position
 data Exp' a
-    = Lam a [Binding' a] (Exp' a)
-    | Where a (Exp' a) [LayoutElemExpDecl' a]
+    = Where a (Exp' a) [LayoutElemExpDecl' a]
+    | Lam a [Binding' a] (Exp' a)
     | Typed a (Exp' a) (Type' a)
     | With a (Exp' a) [LayoutElemFieldDecl' a]
     | InfixOper a (Exp' a) (InfixOp' a) (Exp' a)
@@ -127,10 +127,8 @@ data Exp' a
     | Extern a (AString' a) (Type' a)
     | If a [LayoutElemIfBranch' a]
     | Parens a (Exp' a)
-    | Qualified a (UIdent' a) (LIdent' a)
     | Record a [FieldDecl' a]
     | Scalar a (Scalar' a)
-    | Select a (Exp' a) (LIdent' a)
     | Tuple a (TupleElemExp' a) [TupleElemExp' a]
     | Unit a
     | Var a (LIdent' a)
@@ -204,8 +202,7 @@ data Size' a = SzNat a (UInt' a) | SzVar a (LIdent' a)
 
 type Stmt = Stmt' BNFC'Position
 data Stmt' a
-    = Let a (Pat' a) (Exp' a)
-    | Stmt a (Exp' a)
+    = Stmt a (Exp' a)
     | TailRecLet a (TailRecDecls' a)
     | XLet a (Exp' a) (Exp' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
@@ -400,8 +397,8 @@ instance HasPosition Decl where
 
 instance HasPosition Exp where
   hasPosition = \case
-    Lam p _ _ -> p
     Where p _ _ -> p
+    Lam p _ _ -> p
     Typed p _ _ -> p
     With p _ _ -> p
     InfixOper p _ _ _ -> p
@@ -415,10 +412,8 @@ instance HasPosition Exp where
     Extern p _ _ -> p
     If p _ -> p
     Parens p _ -> p
-    Qualified p _ _ -> p
     Record p _ -> p
     Scalar p _ -> p
-    Select p _ _ -> p
     Tuple p _ _ -> p
     Unit p -> p
     Var p _ -> p
@@ -491,7 +486,6 @@ instance HasPosition Size where
 
 instance HasPosition Stmt where
   hasPosition = \case
-    Let p _ _ -> p
     Stmt p _ -> p
     TailRecLet p _ -> p
     XLet p _ _ -> p

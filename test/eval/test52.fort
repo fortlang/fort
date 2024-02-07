@@ -1,0 +1,15 @@
+foo = \a -> x + a
+  where x = -12
+
+curry = \f ~x y -> f (x, y)
+
+operator + = add infixl 6.0
+add = curry Prim.add
+
+println = \a -> do
+  Prim.print a
+  Prim.print '\n'
+
+main = do
+  println (foo 2)
+

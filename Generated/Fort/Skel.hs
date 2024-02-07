@@ -150,8 +150,8 @@ transDecl x = case x of
 
 transExp :: Show a => Fort.Abs.Exp' a -> Result
 transExp x = case x of
-  Fort.Abs.Lam _ bindings exp -> failure x
   Fort.Abs.Where _ exp layoutelemexpdecls -> failure x
+  Fort.Abs.Lam _ bindings exp -> failure x
   Fort.Abs.Typed _ exp type_ -> failure x
   Fort.Abs.With _ exp layoutelemfielddecls -> failure x
   Fort.Abs.InfixOper _ exp1 infixop exp2 -> failure x
@@ -165,10 +165,8 @@ transExp x = case x of
   Fort.Abs.Extern _ astring type_ -> failure x
   Fort.Abs.If _ layoutelemifbranchs -> failure x
   Fort.Abs.Parens _ exp -> failure x
-  Fort.Abs.Qualified _ uident lident -> failure x
   Fort.Abs.Record _ fielddecls -> failure x
   Fort.Abs.Scalar _ scalar -> failure x
-  Fort.Abs.Select _ exp lident -> failure x
   Fort.Abs.Tuple _ tupleelemexp tupleelemexps -> failure x
   Fort.Abs.Unit _ -> failure x
   Fort.Abs.Var _ lident -> failure x
@@ -241,7 +239,6 @@ transSize x = case x of
 
 transStmt :: Show a => Fort.Abs.Stmt' a -> Result
 transStmt x = case x of
-  Fort.Abs.Let _ pat exp -> failure x
   Fort.Abs.Stmt _ exp -> failure x
   Fort.Abs.TailRecLet _ tailrecdecls -> failure x
   Fort.Abs.XLet _ exp1 exp2 -> failure x

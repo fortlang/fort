@@ -3,6 +3,7 @@
 module Fort.Type (module Fort.Type) where
 
 import Fort.Utils
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -26,9 +27,9 @@ data TCSt = TCSt
 
 data Ty
   -- these should be eliminated during evalType
-  = XTyTLam TyEnv [LIdent] Type
-  | XTyLam TyEnv [Binding] Exp
-  | XTyTailRecDecls TyEnv [TailRecDecl] LIdent
+  = XTyTLam TyEnv LIdent Type
+  | XTyLam TyEnv Binding Exp
+  | XTyTailRecDecls TyEnv (NonEmpty TailRecDecl) LIdent
   | XTyUnknown LIdent Int
   | XTyChar
   | XTyFloat
@@ -36,8 +37,8 @@ data Ty
   | XTyUInt
   | XTyPointer
   | XTyArray
-  | XXTyArray [Integer]
-  | XTySizes [Integer]
+  | XXTyArray (NonEmpty Integer)
+  | XTySizes (NonEmpty Integer)
   | XTyPrimCall LIdent
 
   -- these should remain
@@ -45,7 +46,7 @@ data Ty
   | TyFun Ty Ty
   | TyRecord (Map LIdent Ty)
   | TySum (Map UIdent (Maybe Ty))
-  | TyTuple [Ty] -- two or more
+  | TyTuple (NonEmpty2 Ty)
   | TyArray Sz Ty
   | TyUnit
 
@@ -89,7 +90,7 @@ instance Pretty Ty where
 
     TyRecord m -> "Record" <+> pretty m
     TySum m -> "Sum" <+> pretty m
-    TyTuple ts -> tupled (fmap pretty ts)
+    TyTuple ts -> tupled2 (fmap pretty ts)
     TyUnit -> "()"
 
     TyPointer t -> "Pointer" <+> f t
@@ -167,7 +168,7 @@ evalType env x = case x of
       Nothing -> err101 "unknown type name" n tbl
       Just t -> evalType env t
 
-  TLam _ vs t -> pure $ XTyTLam env vs t
+  TLam _ v t -> pure $ XTyTLam env v t
  
   TVar _ v ->
     case Map.lookup v env of
@@ -178,21 +179,17 @@ evalType env x = case x of
     ta <- evalType env a
     tb <- evalType env b
     case (ta, tb) of
-      (XTyTLam env' vs t, _) -> case vs of
-          [] -> unreachable101 "empty type lambda" a ta
-          v : rest -> do
-            let env'' = Map.insert v tb env'
-            case rest of
-              [] -> evalType env'' t
-              _ -> pure $ XTyTLam env'' rest t
+      (XTyTLam env' v t, _) -> do
+        let env'' = Map.insert v tb env'
+        evalType env'' t
 
       (XTyPointer, _) -> pure $ TyPointer tb
-      (XTyChar, XTySizes [sz]) -> pure $ TyChar sz
-      (XTyFloat, XTySizes [sz]) -> if
+      (XTyChar, XTySizes (sz :| [])) -> pure $ TyChar sz
+      (XTyFloat, XTySizes (sz :| [])) -> if
         | sz `elem` [16, 32, 64] -> pure $ TyFloat sz
         | otherwise -> err101 "unsupported Float size" b sz
-      (XTyInt, XTySizes [sz]) -> pure $ TyInt sz
-      (XTyUInt, XTySizes [sz]) -> pure $ TyUInt sz
+      (XTyInt, XTySizes (sz :| [])) -> pure $ TyInt sz
+      (XTyUInt, XTySizes (sz :| [])) -> pure $ TyUInt sz
       (XXTyArray szs, _) -> pure $ foldr TyArray tb szs
       (XTyArray, XTySizes szs) -> pure $ XXTyArray szs
       _ -> err101 "unexpected type in type application" a ta
@@ -206,17 +203,20 @@ evalType env x = case x of
   TString _ -> pure TyString
   TUnit _ -> pure TyUnit
   TOpaque _ a -> pure $ TyOpaque $ valOf a
-  TTuple _ a bs -> TyTuple <$> mapM (evalType env) (fmap newtypeOf (a:bs))
-  TRecord _ bs -> TyRecord . Map.fromList <$> mapM (evalTField env) (fmap newtypeOf bs)
-  TSum _ bs -> TySum . Map.fromList <$> mapM (evalTSum env) (fmap newtypeOf bs)
+  TTuple _ bs -> TyTuple <$> mapM (evalType env) bs
+  TRecord _ bs -> TyRecord . fromNEList <$> mapM (evalTField env) bs
+  TSum _ bs -> TySum . fromNEList <$> mapM (evalTSum env) bs
   
   TChar _ -> pure XTyChar
   TFloat _ -> pure XTyFloat
   TInt _ -> pure XTyInt
   TUInt _ -> pure XTyUInt
   
-  TSize _ a -> pure $ XTySizes [valOf a]
-  TSizes _ bs -> XTySizes . concat <$> mapM (evalSize env) bs
+  TSize _ a -> pure $ XTySizes $ NE.singleton $ valOf a
+  TSizes _ bs -> XTySizes . concatNE <$> mapM (evalSize env) bs
+
+fromNEList :: Ord k => NonEmpty (k, a) -> Map k a
+fromNEList = Map.fromList . toList
 
 evalTField :: TyEnv -> TField -> M (LIdent, Ty)
 evalTField env (TField _ fld t) = (fld, ) <$> evalType env t
@@ -225,14 +225,12 @@ evalTSum :: TyEnv -> TSum -> M (UIdent, Maybe Ty)
 evalTSum env (TCon _ c t) = (c, ) . Just <$> evalType env t
 evalTSum _ (TEnum _ c) = pure (c, Nothing)
 
-evalSize :: TyEnv -> Size -> M [Integer]
-evalSize env x = case x of
-  SzNat _ a -> pure [valOf a]
-  SzVar pos v -> do
-    t <- evalType env $ TVar pos v
-    case t of
-      XTySizes szs -> pure szs
-      _ -> err101 "unexpected size variable" x t
+evalSize :: TyEnv -> Type -> M (NonEmpty Integer)
+evalSize env x = do
+  t <- evalType env x
+  case t of
+    XTySizes szs -> pure szs
+    _ -> err101 "unexpected size type" x t
 
 isRegisterTy :: Ty -> Bool
 isRegisterTy x = case x of

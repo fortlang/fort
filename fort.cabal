@@ -20,7 +20,7 @@ name:               fort
 -- PVP summary:     +-+------- breaking API changes
 --                  | | +----- non-breaking API additions
 --                  | | | +--- code changes with no API change
-version:            0.1.0.0
+version:            0.1.0.1
 
 -- URL for the project homepage or repository.
 homepage:           https://github.com/fortlang
@@ -79,8 +79,7 @@ executable fort
     -- Other library packages from which modules are imported.
       -- base ^>=4.18.0.0
     build-depends:
-      base
-      , fort, optparse-applicative
+      base, fort, optparse-applicative
     -- Directories containing source files.
     hs-source-dirs:   app
 
@@ -107,7 +106,7 @@ library
   exposed-modules:
       Fort.Abs, Fort.Layout, Fort.Lex, Fort.Par, Fort.Print, Fort.Utils
       , Fort.Qualify, Fort.Precedence, Fort.Bindings, Fort.FreeVars
-      , Fort.Val, Fort.LLVM, Fort.Simplify, Fort.Dependencies, Fort.FIL, Fort.Prims, Fort.TypeChecker, Fort.Type, Fort.Errors, Fort.Parse, Fort, Paths_fort
+      , Fort.Val, Fort.LLVM, Fort.Simplify, Fort.Dependencies, Fort.FIL, Fort.Prims, Fort.TypeChecker, Fort.Type, Fort.Errors, Fort.Parse, Fort.AST, Fort.FunctorAST, Fort, Paths_fort
 
   build-depends:
     base

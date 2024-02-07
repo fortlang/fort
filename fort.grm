@@ -22,24 +22,26 @@ Binding nonterminal
 
 TailRecDecls ::= layout "tailrec" TailRecDecl
 
-TailRecDecl ::= LIdent "=" "\\" LIdent "->" .Where
+TailRecDecl ::= LIdent "=" "\\" LIdent "->" .Typed ;; BAL: can have a type on the LIdents...
+;; Where
 
 Exp nonterminal
-  Lam ::= "\\" terminator "" Binding "->" Exp
+  Where ::= .Lam layout "where" ExpDecl
   ---
-  Where ::= .Where layout "where" ExpDecl
+  Lam ::= "\\" terminator "" Binding "->" .Lam
   ---
   Typed ::= .Typed ":" "`" Type "`"
   ---
   With ::= .With layout "with" FieldDecl
   ---
-  InfixOper ::= .InfixOper InfixOp Exp
+  InfixOper ::= .InfixOper InfixOp .Lam
   ---
   App ::= .App .PrefixOper
   ---
   PrefixOper ::= PrefixOp .Exp0
   --- Exp0
   XDot ::= .Exp0 "." LIdent
+  ;; ^ either a qualified name or a record field selector
   Extern ::= "extern" AString "`" Type "`" 
   Do ::= layout "do" Stmt
   If ::= layout "if" IfBranch
@@ -55,8 +57,6 @@ Exp nonterminal
   Var ::= LIdent
   Con ::= UIdent
   Scalar ::= Scalar
-  Select ::= internal Exp "." LIdent
-  Qualified ::= internal UIdent "." LIdent
 
 IfBranch ::= .InfixOper "->" Exp
 FieldDecl ::= LIdent "=" Exp
@@ -67,7 +67,6 @@ Stmt nonterminal
   Stmt ::= Exp
   XLet ::= Exp "=" Exp
     ;; parsed as Exp then converted to Pat
-  Let ::= internal Pat "=" Exp
 
 AltPat nonterminal
   PEnum ::= UIdent
