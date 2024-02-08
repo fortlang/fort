@@ -20,7 +20,7 @@ name:               fort
 -- PVP summary:     +-+------- breaking API changes
 --                  | | +----- non-breaking API additions
 --                  | | | +--- code changes with no API change
-version:            0.1.0.1
+version:            0.1.0.2
 
 -- URL for the project homepage or repository.
 homepage:           https://github.com/fortlang
@@ -30,7 +30,7 @@ synopsis: compiler for the fort programming language
 
 -- A longer description of the package.
 description:
-  Fort is a general purpose programming language targeting mainly embedded/systems programming.  Fort allows code to be written in a functional style (similar to Haskell 'do' syntax) and produces a finite state machine with fix, known at compile-time, memory usage (a growable run-time stack is opt-in).  It is straightforward to interface fort code to/from C.
+  Fort is a general purpose programming language targeting mainly embedded/systems programming.  Fort allows code to be written in a functional style (similar to Haskell 'do' syntax) and produces a finite state machine with fixed, known at compile-time, memory usage (a growable run-time stack is opt-in).  It is straightforward to interface fort code to/from C.
 
 -- The license under which the package is released.
 license:            BSD-3-Clause

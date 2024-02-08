@@ -142,28 +142,28 @@ evalExpDecl env x = case x of
     matchBinding p (positionOf e, t)
   TailRec _ a -> envTailRecDecls env a
 
-evalCaseAlt :: TyEnv -> (Position, Ty) -> CaseAlt -> M (Maybe (Position, Ty))
+evalCaseAlt :: TyEnv -> (Position, Ty) -> CaseAlt -> M (Maybe ((Position, Ty), Maybe UIdent))
 evalCaseAlt env ty@(pos0, t0) (CaseAlt _ altp e) = case altp of
-  PDefault _ v -> Just <$> evalWithPos (Map.insert v t0 env) e
+  PDefault _ v -> Just . (, Nothing) <$> evalWithPos (Map.insert v t0 env) e
   PCon _ c p -> case t0 of
     TySum m -> case Map.lookup c m of
       Nothing -> pure Nothing
       Just mt -> case mt of
         Just t -> do
           env' <- match p (pos0, t)
-          Just <$> evalWithPos (env' <> env) e
+          Just . (, Just c) <$> evalWithPos (env' <> env) e
         Nothing -> err101 "unexpected sum pattern" p t0
     _ -> err101 "unexpected sum pattern with non-sum type" altp t0
   PEnum _ c -> case t0 of
     TySum m -> case Map.lookup c m of
       Nothing -> pure Nothing
       Just mt -> case mt of
-        Nothing -> Just <$> evalWithPos env e
+        Nothing -> Just . (, Just c) <$> evalWithPos env e
         Just _ -> err101 "unexpected enum pattern" altp t0
     _ -> err101 "unexpected enum pattern with non-enum type" altp t0
   PScalar _ a -> do
     _ <- unify_ ty (positionOf a, typeOf a)
-    Just <$> evalWithPos env e
+    Just . (, Nothing) <$> evalWithPos env e
 
 instance Typed Scalar where
   typeOf = typeOf . scalarToVScalar
@@ -292,10 +292,19 @@ eval env x = traceEval x $ case x of
     va@(_, ta) <- evalWithPos env a
     unless (isIntTy ta || isTySum ta) $
       err101 "expected integral type in 'case' expression" a ta
-    alts <- catMaybes <$> mapM (evalCaseAlt env va) (toList bs)
-    case alts of
+    (alts, mcons) <- unzip . catMaybes <$> mapM (evalCaseAlt env va) (toList bs)
+    t <- case alts of
       [] -> err100 "no alternatives match" a
       _ -> unifies $ NE.fromList alts
+    let noDefaultCase = List.null [ () | CaseAlt _ PDefault{} _ <- toList bs ]
+    when noDefaultCase $ case ta of
+      TySum m -> if
+        | List.null cs -> pure ()
+        | otherwise -> err10n "'case' on sum type missing alternatives" x cs
+        where
+          cs = Map.keys m List.\\ catMaybes mcons
+      _ -> err100 "'case' on scalar type with no default given" x
+    pure t
 
   Do _ ss -> evalStmts env ss
 

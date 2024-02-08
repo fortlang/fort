@@ -162,8 +162,9 @@ clamp = \x y z -> min (max x y) z
 countof = Prim.countof
 typeof = Prim.typeof
 
-from-ok = \x -> case x of
+from-ok = \a0 x -> case x of
   Ok a -> a
+  _ -> a0
 
 cast = curry Prim.cast
 

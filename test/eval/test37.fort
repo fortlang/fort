@@ -45,8 +45,9 @@ debug = \st -> do
 type Char = C 8
 print = Prim.print
 otherwise = True
-from-ok = \x -> case x of
+from-ok = \a0 x -> case x of
   Ok a -> a
+  _ -> a0
 
 loop = \a0 ~f -> do
   tailrec
@@ -69,11 +70,11 @@ main = do
   sk = push 'b' sk
   debug sk
 
-  (c, sk) = from-ok $ pop sk
+  (c, sk) = from-ok ('Z', sk) $ pop sk
   println c
   debug sk
 
-  (c, sk) = from-ok $ pop sk
+  (c, sk) = from-ok ('Z', sk) $ pop sk
   println c
   debug sk
 
@@ -86,10 +87,10 @@ main = do
   sk = push (Just 'a') sk
   debug sk
 
-  (mc, sk) = from-ok $ pop sk
+  (mc, sk) = from-ok (Nothing, sk) $ pop sk
   debug sk
 
-  (mc, sk) = from-ok $ pop sk
+  (mc, sk) = from-ok (Nothing, sk) $ pop sk
   debug sk
 
   ()

@@ -1,0 +1,81 @@
+;; Introduction to the fort programming language
+
+;; single-line comments start from ';;' and continue to the end of the line
+;; there are no multi-line comments
+
+;; this is the main program
+;; if you are using fort to build an executable (not a library) you'll need a main defined somewhere
+
+qualifier Prelude = "./examples/prelude.fort"
+;; ^ The 'qualifier' declaration is how fort knows to pull in other files.
+;; It doesn't have to be at the top of the file.  In fact, declarations in fort files can be in
+;; any order.
+;; Qualifiers are shared with all the fort files that are pulled in for a particular build.  That
+;; means you don't need it in every file in a group, just one mention is sufficient.
+;; A qualifier (e.g. 'Prelude') is used to disambiguate names within a group of files, e.g. Prelude.println.
+
+main = do
+  println "hello, world!"
+  ;; ^ the name println is not ambiguous in this build so we can leave the qualifier off.
+
+  ;; 'do' is the construct that executes a series of expressions in order
+  ;; fort uses layout/whitespace for delimiters similar to haskell/python
+  ;; if you prefer the more traditional style, semicolons/braces are supported too
+
+  ;; println is a function that takes an input value and prints it to the screen, followed by a newline
+  ;; here we are passing the literal, immutable string value "hello, world!" into the println function
+
+  ;; println only takes one argument, but in general fort arguments are delimited via whitespace
+  ;; this is different than many languages that use parenthesis and commas
+  ;; e.g. println("hello, world!")
+
+  ;; print functions in fort are generally "polymorphic" in that they take a value of any type
+  ;; and print a representation of that value to the screen
+  ;; here are some more prints with the other primitive types in fort
+
+  println 42 ;; 32-bit signed integer
+  println 3.14 ;; 64-bit floating point value
+  println True ;; boolean value, either True or False
+  println 'A' ;; 8-bit character literal
+  println 0xff ;; 32-bit unsigned integer
+
+  ;; unsigned integers can be expressed in hexidecimal as seen here, octal (e.g. 0o77) or binary (e.g. 0b10010)
+
+  ;; values can also be given names, e.g.
+
+  x = 42
+  println x
+  ;; here x has the value 42 and that value is passed into println
+
+  ;; values in fort are defined in what's called "single static assignment" or SSA form
+  ;; this means that we can not update them the same way other programs update variables, since they can only be assigned to once.
+  ;; but that doesn't mean we can't reuse the same name
+  ;; if for example, we write this:
+
+  println x ;; x still has the value 42
+  println x ;; x still has the value 42
+
+  x = "hello" ;; this x has the value "hello"
+  println x ;; here x has the value "hello" and that value is passed into println
+
+  ;; we say that this new name x "shadows" the previous name x and it is now impossible
+  ;; to refer to the previous x for the rest of the 'do' construct
+
+  ;; instead of using parenthesis and comments to delimit arguments, fort uses them to
+  ;; create tuple values
+  ;; tuple values are containers that contain two or more values of possibly different types, as in:
+
+  println ("some string", True)
+
+  ;; this creates a 2-tuple value where the first value in the tuple is "some string"
+  ;; and the second value in the tuple is the boolean value True
+  ;; println still takes a single argument, it just so happens that the argument we are passing in contains two values
+
+  ;; tuples can have any number of values >= 2, e.g.
+  println ("some string", True, 3.14)
+
+  ;; and be arbitrarily nested, e.g.
+  println (("some string", True), (3.14, 0xff), 42)
+  
+  0
+

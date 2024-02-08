@@ -1,0 +1,9 @@
+foo = \x -> case x of
+  1 -> println "ok"
+
+println = \a -> do
+  Prim.print a
+  Prim.print '\n'
+
+main = do
+  foo 2

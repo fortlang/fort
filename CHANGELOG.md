@@ -1,5 +1,9 @@
 # Revision history for fort
 
+## 0.1.0.2 -- 2024-02-08
+
+    perform exhaustiveness check on case expressions
+
 ## 0.1.0.1 -- 2024-02-08
 
     refactored into custom AST

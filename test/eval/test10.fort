@@ -9,6 +9,7 @@ main = do
 
   case 0xff of
     0xff -> println "0xff"
+    _ -> println "impossible"
 
   a = if
     True -> { baz = a }

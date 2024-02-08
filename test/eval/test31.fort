@@ -38,9 +38,11 @@ main = do
     Just c -> do
       println "Just"
       println c
+    Nothing -> println "Nothing"
 
   case @(p#1) of
     Nothing -> println "Nothing"
+    _ -> println "not Nothing"
 
   println "\nTest: Array x Tuple"
   p = alloca `Array 2 (Char, String)`
@@ -145,6 +147,7 @@ main = do
     Just n -> do
       println "Just"
       println n
+    _ -> println "not Just"
   println @(d#0)
   println @(d#1)
   
@@ -154,6 +157,7 @@ main = do
   println @c
   case @c of
     Nothing -> println "Nothing"
+    _ -> println "not Nothing"
   println @(d#0)
   println @(d#1)
  
@@ -186,6 +190,7 @@ main = do
       println (Prim.typeof aa)
       println @(aa#0)
       println @(aa#1)
+    _ -> println "not AArray"
 
   arr = array
     ATuple (1, True)
@@ -210,10 +215,12 @@ main = do
       println "AArray"
       println @(q#0)
       println @(q#1)
+    _ -> println "not AArray"
   
   case @(p#5) of
     ANothing -> do
       println "ANothing"
+    _ -> println "not ANothing"
   
   println "\nTest: Array x Array x (Tuple x Record x Sum x Array)"
 

@@ -75,7 +75,7 @@ test = do
   pb = append 'd' pb
   debug pb
 
-  pb = from-ok $ backspace pb
+  pb = from-ok pb $ backspace pb
   debug pb
 
   pb = append 'c' pb
