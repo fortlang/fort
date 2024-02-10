@@ -1,5 +1,9 @@
 # Revision history for fort
 
+## 0.1.1.0 -- 2024-02-12
+
+    include derivation trace in type checker errors
+
 ## 0.1.0.2 -- 2024-02-08
 
     perform exhaustiveness check on case expressions

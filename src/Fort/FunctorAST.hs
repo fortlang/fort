@@ -34,7 +34,7 @@ instance Pretty (Module a) where
   pretty (Module _ ds) = pvcat ds
 
 data Module a = Module a [Decl a]
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 toModule :: MonadIO m => Abs.Module' Position -> m (Module Position)
 toModule (Abs.Module a bs) = Module a <$> mapM toDecl bs
@@ -64,7 +64,7 @@ toLayoutElemTailRecDecl (Abs.LayoutElemTailRecDecl _ b) = toTailRecDecl b
 toLayoutElemExpDecl (Abs.LayoutElemExpDecl _ b) = toExpDecl b
 
 data ADouble a = ADouble a Text
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 instance Pretty (ADouble a) where
   pretty (ADouble _ a) = pretty a
@@ -72,7 +72,13 @@ instance Pretty (ADouble a) where
 toADouble (Abs.ADouble a (ADoubleTok b)) = pure $ ADouble a b
 
 data AString a = AString a Text
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+
+instance Eq (AString a) where
+  AString _ a == AString _ b = a == b
+
+instance Ord (AString a) where
+  compare (AString _ a) (AString _ b) = compare a b
 
 instance Pretty (AString a) where
   pretty (AString _ x) = pretty x
@@ -84,7 +90,7 @@ data AltPat a
     | PDefault a (LIdent a)
     | PEnum a (UIdent a)
     | PScalar a (Scalar a)
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 instance Pretty (AltPat a) where
   pretty x = case x of
@@ -102,7 +108,7 @@ toAltPat x = case x of
 data Binding a
   = Delayed a (LIdent a)
   | Immediate a (Pat a)
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 instance Positioned (Binding Position) where
   positionOf x = case x of
@@ -119,7 +125,7 @@ toBinding x = case x of
   Abs.Immediate a b -> Immediate a <$> toPat b
 
 data CaseAlt a = CaseAlt a (AltPat a) (Exp a)
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 toCaseAlt (Abs.CaseAlt a b c) = CaseAlt a <$> toAltPat b <*> toExp c
 
@@ -133,7 +139,7 @@ data Decl a
     | PrefixDecl a (PrefixOp a) (QualLIdent a)
     | QualDecl a (UIdent a) (AString a)
     | TypeDecl a (UIdent a) (Type a)
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 instance Pretty (Decl a) where
   pretty x = case x of
@@ -177,7 +183,7 @@ data Exp a
     | Tuple a (NonEmpty2 (Exp a))
     | Unit a
     | Var a (LIdent a)
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 instance Pretty (Exp a) where
   pretty x = case x of
@@ -278,7 +284,7 @@ toExp x = case x of
 data ExpDecl a
     = Binding a (Binding a) (Exp a)
     | TailRec a (TailRecDecls a)
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 instance Pretty (ExpDecl a) where
   pretty x = case x of
@@ -290,7 +296,7 @@ toExpDecl x = case x of
   Abs.TailRec a b -> TailRec a <$> toTailRecDecls b
 
 data FieldDecl a = FieldDecl a (LIdent a) (Exp a)
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 toFieldDecl (Abs.FieldDecl a b c) = FieldDecl a <$> toLIdent b <*> toExp c
 
@@ -304,7 +310,7 @@ data Fixity a
   = InfixL a
   | InfixN a
   | InfixR a
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 instance Pretty (Fixity a) where
   pretty x = case x of
@@ -326,7 +332,7 @@ toLayoutElemTField :: MonadIO m => Abs.LayoutElemTField' Position -> m (TField P
 
 data InfixInfo a
     = InfixInfo a (QualLIdent a) (Fixity a) (ADouble a)
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 hsep2 :: (Pretty a, Pretty b) => a -> b -> Doc ann
 hsep2 a b = pretty a <+> pretty b
@@ -341,15 +347,77 @@ toInfixInfo :: MonadIO m => Abs.InfixInfo' Position -> m (InfixInfo Position)
 toInfixInfo (Abs.InfixInfo a b c d) = InfixInfo a <$> toQualLIdent b <*> toFixity c <*> toADouble d
 
 data InfixOp a = InfixOp a Text
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 instance Pretty (InfixOp a) where
   pretty (InfixOp _ x) = pretty x
 
 toInfixOp (Abs.InfixOp a (InfixOpTok b)) = pure $ InfixOp a b
 
+instance Ord (UIdent a) where
+  compare a b = compare (textOf a) (textOf b)
+
+instance Ord (LIdent a) where
+  compare a b = compare (textOf a) (textOf b)
+
+instance Ord (PrefixOp a) where
+  compare a b = compare (textOf a) (textOf b)
+
+instance Eq (UIdent a) where
+  a == b = textOf a == textOf b
+
+instance Eq (LIdent a) where
+  a == b = textOf a == textOf b
+
+instance Eq (PrefixOp a) where
+  a == b = textOf a == textOf b
+
+instance Ord (InfixOp a) where
+  compare a b = compare (textOf a) (textOf b)
+
+instance Eq (InfixOp a) where
+  a == b = textOf a == textOf b
+
+instance HasText (QualLIdent a) where
+  textOf x = case x of
+    Qual _ a b -> mkQNameText (textOf a) (textOf b)
+    UnQual _ a -> textOf a
+
+instance HasText (LIdent a) where
+  textOf (LIdent _ s) = s
+
+instance HasText (InfixOp a) where
+  textOf (InfixOp _ s) = s
+
+instance HasText (PrefixOp a) where
+  textOf (PrefixOp _ s) = s
+
+instance HasText (AString a) where
+  textOf (AString _ s) = s
+
+instance HasText (ADouble a) where
+  textOf (ADouble _ s) = s
+
+instance HasText (UIdent a) where
+  textOf (UIdent _ s) = s
+
+instance Tok (LIdent Position) where
+  mkTok = LIdent
+
+instance Tok (PrefixOp Position) where
+  mkTok = PrefixOp
+
+instance Tok (UIdent Position) where
+  mkTok = UIdent
+
+mkQNameText :: Text -> Text -> Text
+mkQNameText a b = a <> "." <> b
+
+class Tok a where
+  mkTok :: Position -> Text -> a
+
 data LIdent a = LIdent a Text
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 instance Pretty (LIdent a) where
   pretty (LIdent _ x) = pretty x
@@ -377,7 +445,7 @@ data Pat a
     | PTyped a (Pat a) (Type a)
     | PUnit a
     | PVar a (LIdent a)
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 instance Pretty (Pat a) where
   pretty x = case x of
@@ -396,7 +464,7 @@ toPat x = case x of
     Abs.PVar a b -> PVar a <$> toLIdent b
 
 data PrefixOp a = PrefixOp a Text
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 instance Pretty (PrefixOp a) where
   pretty (PrefixOp _ x) = pretty x
@@ -406,7 +474,7 @@ toPrefixOp (Abs.PrefixOp a (PrefixOpTok b)) = pure $ PrefixOp a b
 data QualLIdent a
     = Qual a (UIdent a) (LIdent a)
     | UnQual a (LIdent a)
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 instance Pretty (QualLIdent a) where
   pretty x = case x of
@@ -425,7 +493,7 @@ data Scalar a
     | Int a Text
     | String a (AString a)
     | UInt a (UInt a)
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 toScalar x = case x of
     Abs.AFalse a -> pure $ AFalse a
@@ -455,7 +523,7 @@ data Stmt a
     = Let a (Pat a) (Exp a)
     | Stmt a (Exp a)
     | TailRecLet a (TailRecDecls a)
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 toStmt x = case x of
     Abs.Stmt a b -> Stmt a <$> toExp b
@@ -489,7 +557,7 @@ toStmt :: MonadIO m => Abs.Stmt' Position -> m (Stmt Position)
 toUIdent :: MonadIO m => Abs.UIdent' Position -> m (UIdent Position)
 
 data TField a = TField a (LIdent a) (Type a)
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 instance Pretty (TField a) where
   pretty (TField _ a b) = binop ":" a b
@@ -500,7 +568,7 @@ toTField (Abs.TField a b c) = TField a <$> toLIdent b <*> toType c
 data TSum a
   = TCon a (UIdent a) (Type a)
   | TEnum a (UIdent a)
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 instance Pretty (TSum a) where
   pretty x = case x of
@@ -514,7 +582,7 @@ toTSum x = case x of
 
 data TailRecDecl a
     = TailRecDecl a (LIdent a) (LIdent a) (Exp a)
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 toTailRecDecl :: MonadIO m => Abs.TailRecDecl' Position -> m (TailRecDecl Position)
 toTailRecDecl (Abs.TailRecDecl a b c d) = TailRecDecl a <$> toLIdent b <*> toLIdent c <*> toExp d
@@ -523,7 +591,7 @@ instance Pretty (TailRecDecl a) where
   pretty (TailRecDecl _ b c d) = pretty b <+> "=" <+> "\\" <+> binop "->" c d
 
 data TailRecDecls a = TailRecDecls a (NonEmpty (TailRecDecl a))
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 toTailRecDecls :: MonadIO m => Abs.TailRecDecls' Position -> m (TailRecDecls Position)
 toTailRecDecls (Abs.TailRecDecls a bs) = TailRecDecls a <$> mapM toLayoutElemTailRecDecl (fromList bs)
@@ -536,10 +604,13 @@ instance Pretty (TailRecDecls a) where
 
 data NonEmpty2 a
   = Cons2 a (NonEmpty a)
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 cons2 :: a -> NonEmpty a -> NonEmpty2 a
 cons2 = Cons2
+
+instance Eq a => Eq (NonEmpty2 a) where
+  (Cons2 a x) == (Cons2 b y) = a == b && x == y
 
 data Type a
     = TLam a (LIdent a) (Type a)
@@ -564,7 +635,7 @@ data Type a
     | TChar a
     | TFloat a
     | TInt a
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 toType :: MonadIO m => Abs.Type' Position -> m (Type Position)
 toType x = case x of
@@ -626,7 +697,7 @@ instance Pretty (Type a) where
     TQualName _ a b -> pretty a <> "." <> pretty b
 
 data UIdent a = UIdent a Text
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 instance Pretty (UIdent a) where
   pretty (UIdent _ x) = pretty x
@@ -638,7 +709,7 @@ data UInt a
     | Dec a Text
     | Hex a Text
     | Oct a Text
-  deriving (Eq, Ord, Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
+  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 instance Pretty (UInt a) where
   pretty x = case x of

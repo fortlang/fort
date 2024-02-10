@@ -52,54 +52,86 @@ templateOfSumDataVals = joinSumDataVals templateOfVals
 
 templateOfVals :: Val -> Val -> M Val
 templateOfVals x y = case (x, y) of
-  (XVNone, _) -> pure y
-  (_, XVNone) -> pure x
+  (XVNone{}, _) -> pure y
+  (_, XVNone{}) -> pure x
   _ | x == y -> pure x
-  (VRecord bs, VRecord cs) -> VRecord <$> intersectionWithM templateOfVals bs cs
-  (VArray t bs, VArray _ cs) | NE.length bs == NE.length cs -> VArray t . NE.fromList <$> zipWithM templateOfVals (toList bs) (toList cs)
-  (VTuple bs, VTuple cs) | length2 bs == length2 cs -> VTuple . fromList2 <$> zipWithM templateOfVals (toList bs) (toList cs)
-  (VSum mb bs, VSum mc cs) -> do
+  (VRecord pos bs, VRecord _ cs) -> VRecord pos <$> intersectionWithM templateOfVals bs cs
+  (VArray pos t bs, VArray _ _ cs) | NE.length bs == NE.length cs -> VArray pos t . NE.fromList <$> zipWithM templateOfVals (toList bs) (toList cs)
+  (VTuple pos bs, VTuple _ cs) | length2 bs == length2 cs -> VTuple pos . fromList2 <$> zipWithM templateOfVals (toList bs) (toList cs)
+  (VSum pos mb bs, VSum _ mc cs) -> do
     bs' <- extendSum bs cs
     cs' <- extendSum cs bs
-    VSum <$> templateOfVals mb mc <*> unionWithM templateOfSumDataVals bs' cs'
-  (VPtr t a, VPtr _ b) -> VPtr t <$> templateOfVals a b
-  (VIndexed t sz a, VIndexed _ _ b) -> VIndexed t sz <$> templateOfVals a b
+    VSum pos <$> templateOfVals mb mc <*> unionWithM templateOfSumDataVals bs' cs'
+  (VPtr pos t a, VPtr _ _ b) -> VPtr pos t <$> templateOfVals a b
+  (VIndexed pos t sz a, VIndexed _ _ _ b) -> VIndexed pos t sz <$> templateOfVals a b
   -- otherwise x and y are either scalars or registers
   -- (assuming the type checker hasn't been disabled)
-  _ -> VScalar . XVFreshRegVal <$> case (typeOf x, typeOf y) of
-    (TyEnum a, TyEnum b) -> pure $ TyEnum $ Set.union a b
-    (tx, ty)
-      | isRegisterTy tx && tx == ty -> pure tx
-      | otherwise -> err101 "unable to create template for values" (noPos (tx, ty)) noTCHint
+  _ | isRegisterVal x && isRegisterVal y -> VScalar posx . XVFreshRegVal posx <$> case (typeOf x, typeOf y) of
+    (TyEnum p a, TyEnum _ b) -> pure $ TyEnum p $ Set.union a b
+    (tx, ty) | tx == ty -> pure tx
+    _ -> err111 "unable to create template for register values" x y noTCHint
+  _ -> err111 "unable to create template for values" x y noTCHint
+  where
+    posx = positionOf x
+
+instance Eq Val where
+  x == y = case (x, y) of
+    (VArray _ a bs, VArray _ c ds) -> a == c && bs == ds
+    (VRecord _ m, VRecord _ n) -> m == n
+    (VSum _ a m, VSum _ b n) -> a == b && m == n
+    (VTuple _ bs, VTuple _ cs) -> bs == cs
+    (VIndexed _ a b c, VIndexed _ d e f) -> a == d && b == e && c == f
+    (VPtr _ a b, VPtr _ c d) -> a == c && b == d
+    (VUnit _, VUnit _) -> True
+    (VScalar _ a,  VScalar _ b) -> a == b
+    _ -> False
+
+instance Eq VScalar where
+  x == y = case (x, y) of
+    (VString _ a, VString _ b) -> a == b
+    (VChar _ a, VChar _ b) -> a == b
+    (VFloat _ a, VFloat _ b) -> a == b
+    (VInt _ a, VInt _ b) -> a == b
+    (VUInt _ a, VUInt _ b) -> a == b
+    (VBool _ a, VBool _ b) -> a == b
+    (VEnum _ a b, VEnum _ c d) -> a == c && b == d
+    (VUndef _ a, VUndef _ b) -> a == b
+    (VExtern _ a ta, VExtern _ b tb) -> a == b && ta == tb
+    (VRegister _ a, VRegister _ b) -> registerId a == registerId b
+    _ -> False
 
 instantiateWithFreshRegs :: VScalar -> M VScalar
 instantiateWithFreshRegs x = case x of
-  XVFreshRegVal t -> freshRegisterScalar t
+  XVFreshRegVal _ t -> freshRegisterScalar t
   _ -> pure x
 
 instantiateWithUndef :: VScalar -> VScalar
 instantiateWithUndef x = case x of
-  XVFreshRegVal t -> VUndef t
+  XVFreshRegVal pos t -> VUndef pos t
   _ -> x
 
 unionVals :: Val -> Val -> M Val -- left biased union
 unionVals x y = case (x, y) of
-  (VRecord bs, VRecord cs) -> VRecord <$> intersectionWithM unionVals bs cs
-  (VArray t bs, VArray _ cs) | NE.length bs == NE.length cs -> VArray t . NE.fromList <$> zipWithM unionVals (toList bs) (toList cs)
-  (VTuple bs, VTuple cs) | length2 bs == length2 cs -> VTuple . fromList2 <$> zipWithM unionVals (toList bs) (toList cs)
-  (VSum k bs, VSum l cs) -> VSum <$> unionVals k l <*> unionWithM (joinSumDataVals unionVals) bs cs
-  (VPtr t a, VPtr _ b) -> VPtr t <$> unionVals a b
-  (VIndexed t sz a, VIndexed _ _ b) -> VIndexed t sz <$> unionVals a b
-  (XVNone, _) -> pure XVNone
-  (VUnit, _) -> pure VUnit
+  (VRecord pos bs, VRecord _ cs) -> VRecord pos <$> intersectionWithM unionVals bs cs
+  (VArray pos t bs, VArray _ _ cs) | NE.length bs == NE.length cs -> VArray pos t . NE.fromList <$> zipWithM unionVals (toList bs) (toList cs)
+  (VTuple pos bs, VTuple _ cs) | length2 bs == length2 cs -> VTuple pos . fromList2 <$> zipWithM unionVals (toList bs) (toList cs)
+  (VSum pos k bs, VSum _ l cs) -> VSum pos <$> unionVals k l <*> unionWithM (joinSumDataVals unionVals) bs cs
+  (VPtr pos t a, VPtr _ _ b) -> VPtr pos t <$> unionVals a b
+  (VIndexed pos t sz a, VIndexed _ _ _ b) -> VIndexed pos t sz <$> unionVals a b
+  (XVNone{}, _) -> pure x
+  (VUnit{}, _) -> pure x
   _ | isRegisterVal x -> pure x
-  _ -> unreachable100 "unable to union values" (noPos (x, y))
+  _ -> unreachable110 "unable to union values" x y
 
 joinVals :: [Val] -> M (Val, [Val])
 joinVals vs = do
-  rval <- foldM templateOfVals XVNone vs
+  rval <- foldM templateOfVals (XVNone pos) vs
   vs' <- sequence [ unionVals v rval | v <- vs ]
   (, ) <$> transformBiM instantiateWithFreshRegs rval <*> pure (fmap (transformBi instantiateWithUndef) vs')
+  where
+    pos = case vs of
+      v : _ -> positionOf v
+      _ -> noPosition
 
 evalBlockM :: M Val -> M Block
 evalBlockM m = do
@@ -123,7 +155,7 @@ evalCon c = do
       i <- gets nextTagId
       modify' $ \st -> st{ nextTagId = i + 1, tags = Map.insert c i $ tags st }
       pure i
-  pure $ VEnum c i
+  pure $ VEnum (positionOf c) c i
 
 freshRegister :: Ty -> M Register
 freshRegister t = if
@@ -132,27 +164,27 @@ freshRegister t = if
     let r = Register{ registerTy = t, registerId = i }
     modify' $ \st -> st{ nextRegisterId = i + 1 }
     pure r
-  | otherwise -> unreachable101 "unable to create register of type" (noPos t) noTCHint
+  | otherwise -> unreachable101 "unable to create register of type" t noTCHint
 
 freshRegisterScalar :: Ty -> M VScalar
-freshRegisterScalar t = VRegister <$> freshRegister t
+freshRegisterScalar t = VRegister (positionOf t) <$> freshRegister t
 
 freshRegisterVal :: Ty -> M Val
-freshRegisterVal t = VScalar <$> freshRegisterScalar t
+freshRegisterVal t = VScalar (positionOf t) <$> freshRegisterScalar t
 
 freshVal :: Ty -> M Val
 freshVal = freshValF id
 
 freshValF :: (Ty -> Ty) -> Ty -> M Val
 freshValF f x = case x of
-  TyRecord m -> VRecord <$> mapM go m
-  TySum m -> VSum <$> freshRegisterVal (f $ mkTyEnum $ Map.keys m) <*> mapM (mapM go) m
-  TyTuple ts -> VTuple <$> mapM go ts
-  TyUnit -> pure VUnit
+  TyRecord pos m -> VRecord pos <$> mapM go m
+  TySum pos m -> VSum pos <$> freshRegisterVal (f $ mkTyEnum pos $ Map.keys m) <*> mapM (mapM go) m
+  TyTuple pos ts -> VTuple pos <$> mapM go ts
+  TyUnit pos -> pure $ VUnit pos
   _ | isRegisterTy x -> freshRegisterVal $ f x -- needs to be above TyPointer
-  TyPointer t -> VPtr x <$> freshValF TyPointer t
-  TyArray sz t -> VIndexed x sz <$> freshValF (f . TyArray sz) t
-  _ -> unreachable100 "unable to generate fresh value" (noPos x)
+  TyPointer pos t -> VPtr pos x <$> freshValF (TyPointer pos) t
+  TyArray pos sz t -> VIndexed pos x sz <$> freshValF (f . TyArray pos sz) t
+  _ -> unreachable100 "unable to generate fresh value" x
   where
     go = freshValF f
 
@@ -160,10 +192,10 @@ type Env = Map LIdent Val
 
 type M a = StateT St (StateT TCSt (StateT OpSt (StateT TySt IO))) a
 
-mkTyEnum :: [UIdent] -> Ty
-mkTyEnum = TyEnum . Set.fromList
+mkTyEnum :: Position -> [UIdent] -> Ty
+mkTyEnum pos = TyEnum pos . Set.fromList
 
-type Prog = Map Text Func
+type Prog = Map AString Func
 
 data Func = Func{ retTy :: Ty, arg :: Val, body :: Block }
   deriving (Show, Data)
@@ -186,7 +218,7 @@ data St = St
   , nextRegisterId :: RegisterId
   , decls :: [VDecl]
   , tailcalls :: [(TailCallId, Val)]
-  , calls :: Map LIdent (Val -> M Val)
+  , calls :: Map AString (Val -> M Val)
   , nextTailCallId :: Integer
   , isSlowSafeBuild :: Bool
   }
@@ -205,47 +237,79 @@ initSt b = St
 
 data Val
   -- these should be eliminated during evalType
-  = XVLam Env Binding Exp -- at the end of eval all lambdas have been eliminated
-  | XVDelay Env Exp -- think of this as a rewrite from v to \() -> v so it won't evaluate immediately and can be used repeatedly (i.e. to repeat side-effecting calls)
-  | XVTailRecDecls Env (Map LIdent TailRecDecl) LIdent
-  | XVTailCall TailCallId
-  | XVCall LIdent
-  | XVNone -- for tail calls
+  = XVLam Position Env Binding Exp -- at the end of eval all lambdas have been eliminated
+  | XVDelay Position Env Exp -- think of this as a rewrite from v to \() -> v so it won't evaluate immediately and can be used repeatedly (i.e. to repeat side-effecting calls)
+  | XVTailRecDecls Position Env (Map LIdent TailRecDecl) LIdent
+  | XVTailCall Position TailCallId
+  | XVCall Position AString
+  | XVNone Position -- for tail calls
   -- at then end, only these remain
-  | VType Ty
+  | VType Position Ty
   -- constructed values
-  | VArray Ty (NonEmpty Val)
-  | VRecord (Map LIdent Val)
-  | VSum Val (Map UIdent (Maybe Val))
-  | VTuple (NonEmpty2 Val)
-  | VIndexed Ty Sz Val
-  | VPtr Ty Val
-  | VUnit
-  | VScalar VScalar
-  deriving (Show, Eq, Data)
+  | VArray Position Ty (NonEmpty Val)
+  | VRecord Position (Map LIdent Val)
+  | VSum Position Val (Map UIdent (Maybe Val))
+  | VTuple Position (NonEmpty2 Val)
+  | VIndexed Position Ty Sz Val
+  | VPtr Position Ty Val
+  | VUnit Position
+  | VScalar Position VScalar
+  deriving (Show, Data)
+
+instance Positioned Val where
+  positionOf x = case x of
+    XVLam pos _ _ _ -> pos
+    XVDelay pos _ _ -> pos
+    XVTailRecDecls pos _ _ _ -> pos
+    XVTailCall pos _ -> pos
+    XVCall pos _ -> pos
+    XVNone pos -> pos
+    VType pos _ -> pos
+    VArray pos _ _ -> pos
+    VRecord pos _ -> pos
+    VSum pos _ _ -> pos
+    VTuple pos _ -> pos
+    VIndexed pos _ _ _ -> pos
+    VPtr pos _ _ -> pos
+    VUnit pos -> pos
+    VScalar pos _ -> pos
 
 isNone :: Val -> Bool
 isNone x = case x of
-  XVNone -> True
+  XVNone{} -> True
   _ -> False
 
 data VScalar
-  = XVFreshRegVal Ty
+  = XVFreshRegVal Position Ty
   -- ^ removed
-  | VString Text
-  | VChar Char
-  | VFloat Double
-  | VInt Integer
-  | VUInt Integer
-  | VBool Bool
-  | VEnum UIdent Integer
-  | VUndef Ty
-  | VExtern LIdent Ty
-  | VRegister Register
-  deriving (Show, Eq, Data)
+  | VString Position Text
+  | VChar Position Char
+  | VFloat Position Double
+  | VInt Position Integer
+  | VUInt Position Integer
+  | VBool Position Bool
+  | VEnum Position UIdent Integer
+  | VUndef Position Ty
+  | VExtern Position AString Ty
+  | VRegister Position Register
+  deriving (Show, Data)
+
+instance Positioned VScalar where
+  positionOf x = case x of
+    XVFreshRegVal pos _ -> pos
+    VString pos _ -> pos
+    VChar pos _ -> pos
+    VFloat pos _ -> pos
+    VInt pos _ -> pos
+    VUInt pos _ -> pos
+    VBool pos _ -> pos
+    VEnum pos _ _ -> pos
+    VUndef pos _ -> pos
+    VExtern pos _ _ -> pos
+    VRegister pos _ -> pos
 
 data VStmt
-  = VCall LIdent Val
+  = VCall AString Val
   | VSwitch Val Block [Alt]
   | VIf Val Block Block
   | VCallTailCall TailCallId Val
@@ -278,7 +342,7 @@ instance Pretty VDecl where
     VTailRecDecls _ m -> "tailrec" <+> vlist ""
       [ pretty a <+> "= \\" <+> pretty b <+> "->" <+> pretty c | (a, (b, c)) <- Map.toList m ]
     VLet a b -> case a of
-      VUnit -> pretty b
+      VUnit _ -> pretty b
       _ -> pretty a <+> "=" <+> pretty b
     VTailCall a b -> "tailcall" <+> pretty a <+> pretty b
 
@@ -302,7 +366,7 @@ newtype RegisterId = RegisterId{ unRegisterId :: Int } deriving (Show, Eq, Ord, 
 instance Pretty RegisterId where
   pretty x = "%r" <> pretty (unRegisterId x)
 
-data Register = Register{ registerTy :: Ty, registerId :: RegisterId } deriving (Show, Eq, Data)
+data Register = Register{ registerTy :: Ty, registerId :: RegisterId } deriving (Show, Data)
 
 instance Typed Register where
   typeOf = registerTy
@@ -316,104 +380,104 @@ instance Pretty Val where
     XVDelay{} -> "<delay>"
     XVTailRecDecls{} -> "<tailrecdecls>"
     XVTailCall{} -> "<tailcall>"
-    XVNone -> "<no value>"
-    XVCall v -> "<call" <+> pretty v <> ">"
-    VRecord m -> "record" <+> pretty m
-    VSum con m -> vlist "sum" [ "Tag:" <+> pretty con, "UNION:" <+> pretty m ]
-    VType t -> "`" <> pretty t <> "`"
-    VArray _ vs -> nelist $ fmap pretty vs
-    VTuple vs -> tupled2 $ fmap pretty vs
-    VUnit -> "()"
-    VScalar a -> pretty a
-    VPtr _ a -> "<ptr = " <> pretty a <> ">"
-    VIndexed _ sz a -> "<indexed = " <> pretty sz <+> pretty a <> ">"
+    XVNone{} -> "<no value>"
+    XVCall _ v -> "<call" <+> pretty v <> ">"
+    VRecord _ m -> "record" <+> pretty m
+    VSum _ con m -> vlist "sum" [ "Tag:" <+> pretty con, "UNION:" <+> pretty m ]
+    VType _ t -> "`" <> pretty t <> "`"
+    VArray _ _ vs -> nelist $ fmap pretty vs
+    VTuple _ vs -> tupled2 $ fmap pretty vs
+    VUnit _ -> "()"
+    VScalar _ a -> pretty a
+    VPtr _ _ a -> "<ptr = " <> pretty a <> ">"
+    VIndexed _ _ sz a -> "<indexed = " <> pretty sz <+> pretty a <> ">"
 
 instance Pretty VScalar where
   pretty x = case x of
-    VString a -> pretty $ show a
-    VChar a -> pretty $ show a
-    VFloat a -> pretty a
-    VInt a -> pretty a
-    VUInt a -> pretty a
-    VBool a -> pretty a
-    VUndef t -> "<undef :" <+> pretty t <> ">"
-    VEnum a _ -> "tag" <+> pretty a
-    VExtern nm _ -> "<extern" <+> pretty nm <+> ">"
-    VRegister r -> pretty r
-    XVFreshRegVal t -> "<freshreg :" <+> pretty t <+> ">"
+    VString _ a -> pretty $ show a
+    VChar _ a -> pretty $ show a
+    VFloat _ a -> pretty a
+    VInt _ a -> pretty a
+    VUInt _ a -> pretty a
+    VBool _ a -> pretty a
+    VUndef _ t -> "<undef :" <+> pretty t <> ">"
+    VEnum _ a _ -> "tag" <+> pretty a
+    VExtern _ nm _ -> "<extern" <+> pretty nm <+> ">"
+    VRegister _ r -> pretty r
+    XVFreshRegVal _ t -> "<freshreg :" <+> pretty t <+> ">"
 
 instance Typed Val where
   typeOf x = case x of
-    VRecord m -> TyRecord $ fmap typeOf m
-    VSum _ m -> TySum $ fmap (fmap typeOf) m
-    VTuple vs -> TyTuple $ fmap typeOf vs
-    VUnit -> TyUnit
-    VArray t _ -> t
-    VPtr t _ -> t
-    VIndexed t _ _ -> t
-    VScalar a -> typeOf a
-    VType t -> TyType t
+    VRecord pos m -> TyRecord pos $ fmap typeOf m
+    VSum pos _ m -> TySum pos $ fmap (fmap typeOf) m
+    VTuple pos vs -> TyTuple pos $ fmap typeOf vs
+    VUnit pos -> TyUnit pos
+    VType pos t -> TyType pos t
+    VArray _ t _ -> t
+    VPtr _ t _ -> t
+    VIndexed _ t _ _ -> t
+    VScalar _ a -> typeOf a
     _ -> unreachable "unable to take type of value" x
 
 instance Typed VScalar where
   typeOf x = case x of
-    VString _ -> TyString
-    VChar _ -> TyChar 8
-    VFloat _ -> TyFloat 64
-    VInt _ -> TyInt 32
-    VUInt _ -> TyUInt 32
-    VBool _ -> TyBool
-    VEnum c _ -> mkTyEnum [c]
-    VExtern _ t -> t
-    VUndef t -> t
-    VRegister r -> typeOf r
-    XVFreshRegVal t -> t
+    VString pos _ -> TyString pos
+    VChar pos _ -> TyChar pos 8
+    VFloat pos _ -> TyFloat pos 64
+    VInt pos _ -> TyInt pos 32
+    VUInt pos _ -> TyUInt pos 32
+    VBool pos _ -> TyBool pos
+    VEnum pos c _ -> mkTyEnum pos [c]
+    VRegister _ r -> typeOf r
+    VExtern _ _ t -> t
+    VUndef _ t -> t
+    XVFreshRegVal _ t -> t
 
 scalarToVScalar :: Scalar -> VScalar
 scalarToVScalar x = case x of
-  Char _ t -> VChar $ read $ Text.unpack t
-  Double _ v -> VFloat $ valOf v
-  Int _ t -> VInt $ read $ Text.unpack t
-  String _ v -> VString $ valOf v
-  UInt _ v -> case v of
-    Dec{} -> VInt $ valOf v
-    _ -> VUInt $ valOf v
-  ATrue _ -> VBool True
-  AFalse _ -> VBool False
+  Char pos t -> VChar pos $ read $ Text.unpack t
+  Double pos v -> VFloat pos $ valOf v
+  Int pos t -> VInt pos $ read $ Text.unpack t
+  String pos v -> VString pos $ valOf v
+  UInt pos v -> case v of
+    Dec{} -> VInt pos $ valOf v
+    _ -> VUInt pos $ valOf v
+  ATrue pos -> VBool pos True
+  AFalse pos -> VBool pos False
 
 isRegisterVal :: Val -> Bool
 isRegisterVal = isRegisterTy . typeOf
 
 flattenVTuple :: Val -> [Val]
 flattenVTuple x = case x of
-  VTuple vs -> toList vs
+  VTuple _ vs -> toList vs
   _ -> [x]
 
 flattenVal :: Val -> Maybe Val
 flattenVal x = case x of
-  VRecord m -> f $ fmap snd $ sortByFst $ Map.toList m
-  VSum k m -> f (k : fmap snd (sortByFst [ (con, v) | (con, Just v) <- Map.toList m ]))
-  VArray _ vs -> f $ toList vs
-  VTuple vs | all isFlatVal vs -> Nothing
-  VTuple vs -> f $ concatMap flattenVTuple vs
-  VPtr _ a -> Just a
-  VIndexed _ _ a -> Just a
+  VRecord _ m -> f $ fmap snd $ sortByFst $ Map.toList m
+  VSum _ k m -> f (k : fmap snd (sortByFst [ (con, v) | (con, Just v) <- Map.toList m ]))
+  VArray _ _ vs -> f $ toList vs
+  VTuple _ vs | all isFlatVal vs -> Nothing
+  VTuple _ vs -> f $ concatMap flattenVTuple vs
+  VPtr _ _ a -> Just a
+  VIndexed _ _ _ a -> Just a
   _ | isFlatVal x -> Nothing
   _ -> unreachable "unable to flatten value" x
   where
     f = Just . mkVTuple
     isFlatVal v = case v of
-      VType _ -> True
-      VUnit -> True
+      VType{} -> True
+      VUnit{} -> True
       VScalar{} -> True
-      XVNone -> True
+      XVNone{} -> True
       _ -> False
 
 mkVTuple :: [Val] -> Val
 mkVTuple xs = case xs of
   [] -> unreachable "empty tuple" ()
   [x] -> x
-  x : y : rest -> VTuple (cons2 x (y :| rest))
+  x : y : rest -> VTuple (positionOf x) (cons2 x (y :| rest))
 
 isSwitchVal :: Val -> Bool
 isSwitchVal = isSwitchTy . typeOf

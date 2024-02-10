@@ -48,23 +48,23 @@ llvmProg x = do
   defs <- mapM (llvmFuncBlocks . snd) funcs
   let blks = concatMap Map.elems defs
   let strs = zip (strings blks) [0 :: Int ..]
-  let nms = mkTok noPosition <$> Map.keys x
   pure (bt, vcat $ llvmDeclares nms strs blks : fmap (llvmDefine strs) (zip funcs defs))
   where
+    nms = Map.keys x
     bt = if
-      | "main" `elem` Map.keys x -> Exe
+      | "main" `elem` fmap textOf nms -> Exe
       | Map.null x -> NoCode
       | otherwise -> Obj
 
-llvmDeclares :: [LIdent] -> [(Text, Int)] -> [Block] -> Doc ann
+llvmDeclares :: [AString] -> [(Text, Int)] -> [Block] -> Doc ann
 llvmDeclares nms strs m = vcat
   [ vcat (("declare" <+>) <$> calls nms m)
   , vcat (("declare" <+>) <$> intrinsics m)
-  , vcat [ llvm nm <+> "= external global" <+> llvm ty | (nm, TyPointer ty) <- externs m ]
+  , vcat [ llvm nm <+> "= external global" <+> llvm ty | (nm, TyPointer _ ty) <- externs m ]
   , vcat [ "@.str." <> pretty i <+> "= private unnamed_addr constant" <+> llvmStringConst s | (s, i) <- strs ]
   ]
 
-llvmDefine :: [(Text, Int)] -> ((Text, FIL.Func), Map BlockId Block) -> Doc ann
+llvmDefine :: [(Text, Int)] -> ((AString, FIL.Func), Map BlockId Block) -> Doc ann
 llvmDefine strs0 ((nm, x), blks) = do
   vcat
     [ "define" <+> llvm (FIL.retTy x) <+> "@" <> pretty nm <> llvmArgs (FIL.args x) <> " {"
@@ -95,16 +95,16 @@ llvmBlock targ bid blk = do
       pushPhis targ rs
       pushTerminator $ Br targ
 
-calls :: [LIdent] -> [Block] -> [Doc ann]
+calls :: [AString] -> [Block] -> [Doc ann]
 calls nms m = [ llvm rt <+> llvm nm <+> tupled (fmap llvm ts) | (rt, nm, ts) <- xs ]
   where
     xs = List.nub [ (FIL.typeOf r, nm, filter (not . FIL.isTyUnit) $ fmap FIL.typeOf vs) | Instr r (Call nm) vs <- universeBi m, nm `List.notElem` nms ]
 
 strings :: [Block] -> [Text]
-strings m = List.nub [ s | String s <- universeBi m ]
+strings m = List.nub [ s | String _ s <- universeBi m ]
 
-externs :: [Block] -> [(LIdent, Ty)]
-externs m = [ (nm, ty) | Extern nm ty <- List.nub (universeBi m) ]
+externs :: [Block] -> [(AString, Ty)]
+externs m = [ (nm, ty) | Extern _ nm ty <- List.nub (universeBi m) ]
 
 intrinsics :: [Block] -> [Doc ann]
 intrinsics m = [ llvm rt <+> intrinsicName nm rt ts <+> tupled (fmap llvm ts) | (rt, nm, ts) <- xs ]
@@ -120,7 +120,7 @@ llvmStringConstName i = "%str_" <> Text.pack (show i)
 stringsToStringIds :: Map Text Int -> Map BlockId Block -> Map BlockId Block
 stringsToStringIds strs = transformBi f
   where
-    f (String s) = String $ llvmStringConstName $ lookup_ s strs
+    f (String pos s) = String pos $ llvmStringConstName $ lookup_ s strs
     f x = x
 
 llvmEscString :: String -> String
@@ -185,7 +185,7 @@ llvmDecls :: [FIL.Decl] -> M ()
 llvmDecls = mapM_ llvmDecl
 
 data Instr
-  = Call LIdent
+  = Call AString
   | Intrinsic Intrinsic
   | Equ
   | Neq
@@ -230,8 +230,8 @@ instance Pretty Instr where
     Call nm -> "Call" <+> pretty nm
     _ -> pretty $ show x
 
-lidentToInstr :: LIdent -> Instr
-lidentToInstr nm = case textOf nm of
+astringToInstr :: AString -> Instr
+astringToInstr nm = case textOf nm of
   "Prim.eq" -> Equ
   "Prim.ne" -> Neq
   "Prim.add" -> Add
@@ -274,7 +274,7 @@ llvmDecl :: FIL.Decl -> M ()
 llvmDecl x = case x of
   FIL.Let rs stmt -> case stmt of
     FIL.Call nm vs -> case rs of
-      [r] -> modifyCurrentBlock $ \blk -> blk{ blockStmts = Instr r (lidentToInstr nm) vs : blockStmts blk }
+      [r] -> modifyCurrentBlock $ \blk -> blk{ blockStmts = Instr r (astringToInstr nm) vs : blockStmts blk }
       _ -> unreachable001 "llvmDecl: multiple result values in call" x
 
     FIL.If a b c -> do
@@ -326,13 +326,14 @@ pushPhis targ vs = do
   blkPhis <- blockPhis <$> getBlock targ
   let rslts = fmap fst blkPhis
   case [ a | a <- zip rslts vs, not $ f a ] of
-    _ | length blkPhis /= length vs ->
-      err101 "llvm phi length mismatch" (noPos targ) noTCHint
+    _ | length blkPhis /= length vs -> case vs of
+      [] -> err101 "llvm phi length mismatch" (noPos targ) noTCHint
+      v : _ -> err111 "llvm phi length mismatch" v (noPos targ) noTCHint
     [] -> do
       bid <- gets currentBlockId
       modifyBlock targ $ \blk -> blk
         { blockPhis = [ (rslt, r : rs) | ((rslt, rs), r) <- zip blkPhis (fmap (, bid) vs) ] }
-    bs -> errn01 "llvm phi type mismatch" (concat [ [ (noPos (r, FIL.typeOf r)), (noPos (v, FIL.typeOf v)) ] | (r, v) <- bs ]) noTCHint
+    bs -> errnn1 "llvm phi type mismatch" [ FIL.typeOf r | (r, _) <- bs ] [ FIL.typeOf v | (_, v) <- bs ] noTCHint
   where
     f (rslt, v) = FIL.typeOf rslt == FIL.typeOf v
 
@@ -372,7 +373,7 @@ instance LLVM Terminator where
     Br a -> "br" <+> llvmLabel a
     IfBr a b c -> hsep $ punctuate comma ["br" <+> llvmTyped a, llvmLabel b, llvmLabel c ]
     Ret a -> case FIL.typeOf a of
-      TyUnit -> "ret" <+> llvm TyUnit
+      TyUnit pos -> "ret" <+> llvm (TyUnit pos)
       t -> "ret" <+> llvm t <+> llvm a
     Switch a0 dflt alts -> "switch" <+> f a0 dflt <+> brackets (hsep [ f sclr lbl | Alt sclr lbl <- alts ])
       where
@@ -389,11 +390,8 @@ instance LLVM Stmt where
     Instr r i vs -> cmd
       where
         cmd = case FIL.typeOf r of
-          TyUnit -> llvmRHS TyUnit i vs
+          TyUnit pos -> llvmRHS (TyUnit pos) i vs
           t -> llvm r <+> "=" <+> llvmRHS t i vs
-
-instance LLVM LIdent where
-  llvm x = "@" <> pretty x
 
 llvmRHS :: Ty -> Instr -> [Val] -> Doc ann
 llvmRHS t i vs = cmd
@@ -448,7 +446,7 @@ llvmRHS t i vs = cmd
       Alloca -> "alloca" <+> llvm a
       Load -> "load" <+> llvm t <> "," <+> llvm ta <+> llvm a
       Index -> case ta of
-        TyPointer t' -> "getelementptr inbounds" <+> llvm t' <> "," <+> llvm ta <+> llvm a
+        TyPointer _ t' -> "getelementptr inbounds" <+> llvm t' <> "," <+> llvm ta <+> llvm a
           <> "," <+> llvm tb <+> "0"
           <> "," <+> llvm tb <+> llvm b
         _ -> unreachable "llvmRHS: expected index to return a pointer value" t
@@ -484,7 +482,7 @@ llvmRHS t i vs = cmd
     ta = FIL.typeOf a
     tb = FIL.typeOf b
     bt = case b of
-      Type ty -> ty
+      Type _ ty -> ty
       _ -> unreachable "llvmRHS: expected type value as second argument" b
     a = case vs of
       va : _ -> va
@@ -584,40 +582,43 @@ instance LLVM Sz where
 
 instance LLVM Ty where
   llvm x = case x of
-    TyPointer t -> llvm t <> "*"
-    TyString{} -> llvm $ TyPointer $ TyChar 8
-    TyChar sz -> llvm $ TyUInt sz
-    TyFloat 16 -> "half"
-    TyFloat 32 -> "float"
-    TyFloat 64 -> "double"
+    TyPointer _ t -> llvm t <> "*"
+    TyString pos -> llvm $ TyPointer pos $ TyChar pos 8
+    TyChar pos sz -> llvm $ TyUInt pos sz
+    TyFloat _ 16 -> "half"
+    TyFloat _ 32 -> "float"
+    TyFloat _ 64 -> "double"
 
-    TyInt sz -> "i" <> llvm sz
-    TyUInt sz -> llvm $ TyInt sz
-    TyOpaque -> llvm $ TyUInt 8 -- opaque types must only be accessed through a pointer so we can pick any type here to stand in for void*
-    TyEnum -> llvm $ TyUInt 32
-    TyBool -> llvm $ TyUInt 1
-    TyUnit -> "void"
-    TyArray sz t -> "[" <+> pretty sz <+> "x" <+> llvm t <+> "]"
+    TyInt _ sz -> "i" <> llvm sz
+    TyUInt pos sz -> llvm $ TyInt pos sz
+    TyOpaque pos -> llvm $ TyUInt pos 8 -- opaque types must only be accessed through a pointer so we can pick any type here to stand in for void*
+    TyEnum pos -> llvm $ TyUInt pos 32
+    TyBool pos -> llvm $ TyUInt pos 1
+    TyUnit _ -> "void"
+    TyArray _ sz t -> "[" <+> pretty sz <+> "x" <+> llvm t <+> "]"
     _ -> unreachable "llvm: unexpected type" x
 
 instance LLVM Val where
   llvm x = case x of
-    Unit -> unreachable "llvm: unit value" x
-    Type a -> llvm a
-    Scalar a -> llvm a
+    Unit _ -> unreachable "llvm: unit value" x
+    Type _ a -> llvm a
+    Scalar _ a -> llvm a
 
 instance LLVM Scalar where
   llvm x = case x of
-    Char a -> pretty $ fromEnum a
-    Float a -> pretty $ show a
-    Int a -> pretty $ show a
-    UInt a -> pretty $ show a
-    String a -> pretty a -- this has been turned into a register...
-    Bool a -> if a then "1" else "0"
-    Enum _ i -> pretty i
-    Undef _ -> "undef"
-    Extern nm _ -> llvm nm
-    Register a -> llvm a
+    Char _ a -> pretty $ fromEnum a
+    Float _ a -> pretty $ show a
+    Int _ a -> pretty $ show a
+    UInt _ a -> pretty $ show a
+    String _ a -> pretty a -- this has been turned into a register...
+    Bool _ a -> if a then "1" else "0"
+    Enum _ _ i -> pretty i
+    Undef _ _ -> "undef"
+    Extern _ nm _ -> llvm nm
+    Register _ a -> llvm a
+
+instance LLVM AString where
+  llvm x = "@" <> pretty x
 
 instance LLVM RegisterId where
   llvm x = "%r" <> pretty (unRegisterId x)

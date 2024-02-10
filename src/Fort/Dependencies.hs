@@ -20,8 +20,9 @@ instance Pretty Exported where
   pretty x = case x of
     Main n ds -> "main" <+> pretty n <+> "=" <+> vlist "do" (fmap pretty ds)
     Exported q t ds -> "exported" <+> pretty q <+> ":" <+> pretty t <+> "=" <+> vlist "do" (fmap pretty ds)
+
 -- if we don't find a binding, we assume it's in a where clause and will be checked for in a later pass
-dependenciesModules :: MonadIO m => Text -> [FilePath] -> [(FilePath, Module)] -> m [(FilePath, Map Text Exported)]
+dependenciesModules :: MonadIO m => Text -> [FilePath] -> [(FilePath, Module)] -> m [(FilePath, Map AString Exported)]
 dependenciesModules mainNm fns ms = do
   sequence [ (fn, ) <$> reaches fn ds | (fn, Module _ ds) <- ms, fn `List.elem` fns ]
   where
@@ -33,22 +34,22 @@ dependenciesModules mainNm fns ms = do
 
     gr = modulesDepGraph $ fmap snd ms
 
-    mainReaches fn ds0 = case filter (== qv) vs of
+    mainReaches fn ds0 = case filter ((== qv) . textOf) vs of
       v : _ -> do
         ds <- reachableDecls gr (Set.singleton $ nameOf v)
-        pure [("main", Main v ds)]
+        pure [(AString (positionOf v) "main", Main v ds)]
       [] -> pure []
       where
         vs = concat [ universeBi b | ExpDecl _ (Binding _ b _) <- ds0 ]
-        qv = mkTok noPosition $ mkQNameText (Text.pack fn) mainNm
+        qv = mkQNameText (Text.pack fn) mainNm
 
-exportedFuncs :: MonadIO m => [Decl] -> m [(Text, (QualLIdent, Type))]
+exportedFuncs :: MonadIO m => [Decl] -> m [(AString, (QualLIdent, Type))]
 exportedFuncs ds = do
-  let bs = [ textOf n | ExportDecl _ n _ _ <- ds ]
+  let bs = [ n | ExportDecl _ n _ _ <- ds ]
   let cs = List.nub bs
   case bs List.\\ cs of
-    [] -> pure [ (textOf a, (b, c)) | ExportDecl _ a b c <- ds ]
-    bs' -> errn00 "duplicate export names" [ n | ExportDecl _ n _ _ <- ds, textOf n `elem` bs' ]
+    [] -> pure [ (a, (b, c)) | ExportDecl _ a b c <- ds ]
+    bs' -> errn00 "duplicate export names" [ n | ExportDecl _ n _ _ <- ds, n `elem` bs' ]
 
 modulesDepGraph :: [Module] -> DepGraph
 modulesDepGraph ms = depGraph $ concat [ ds | Module _ ds <- ms ]

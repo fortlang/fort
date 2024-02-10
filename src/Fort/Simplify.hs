@@ -8,12 +8,11 @@ module Fort.Simplify
 , pushDecl
 ) where
 
-import Data.Bifunctor
 import Fort.Dependencies
 import Fort.FreeVars
 import Fort.Prims
 import Fort.Type hiding (M, evalType_)
-import Fort.Utils
+import Fort.Utils hiding (err10n, err100, err101, err110)
 import Fort.Val
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
@@ -24,32 +23,40 @@ import qualified Fort.TypeChecker as TC
 evalType_ :: Type -> M Ty
 evalType_ = lift . lift . lift . Type.evalType_
 
-unifies :: NonEmpty (Position, Ty) -> M Ty
+unifies :: NonEmpty Ty -> M Ty
 unifies = lift . TC.unifies
 
 evalSt :: Bool -> [Decl] -> M a -> IO a
 evalSt ssb ds m =
   flip evalStateT (initTySt ds) $
   flip evalStateT (initOpSt ds) $
-  flip evalStateT (TC.initSt False) $
+  flip evalStateT TC.initSt $
   evalStateT m st0
   where
     st0 = (initSt ssb) { calls = primCalls }
 
-simplifyModules :: Bool -> [(FilePath, Map Text Exported)] -> IO [(FilePath, Prog)]
+simplifyModules :: Bool -> [(FilePath, Map AString Exported)] -> IO [(FilePath, Prog)]
 simplifyModules ssb xs = sequence [ (fn, ) <$> mapM (simplifyFunc ssb) m | (fn, m) <- xs ]
+
+traceEval :: (Positioned a, Pretty a) => a -> M b -> M b
+traceEval x m = do
+  lift $ modify' $ \st -> st{ stackTrace = Posn (positionOf x) (pretty x) : stackTrace st }
+  a <- m
+  lift $ modify' $ \st -> st{ stackTrace = tail $ stackTrace st }
+  pure a
 
 mainArgOf :: [Decl] -> M Val
 mainArgOf xs = do
   margc <- lookupArg "\"FORT_argc\""
   margv <- lookupArg "\"FORT_argv\""
   case (margc, margv) of
-    (Nothing, Nothing) -> pure VUnit
+    (Nothing, Nothing) -> pure $ VUnit noPosition
     (Just argc, Nothing) -> pure argc
-    (Just argc, Just argv) -> pure $ VTuple $ fromList2 [argc, argv]
+    (Just argc, Just argv) -> pure $ VTuple (positionOf argc) $ fromList2 [argc, argv]
     (Nothing, Just argv) -> do
-      argc <- freshVal $ TyInt 32
-      pure $ VTuple $ fromList2 [argc, argv]
+      let pos = positionOf argv
+      argc <- freshVal $ TyInt pos 32
+      pure $ VTuple pos $ fromList2 [argc, argv]
   where
     ss = [ (textOf s, (e, t)) | e@(Extern _ (s :: AString) t) <- universeBi xs ]
     lookupArg nm = case lookup nm ss of
@@ -57,12 +64,12 @@ mainArgOf xs = do
       Just (e, ty) -> do
         t <- evalType_ ty
         case t of
-          TyPointer ta -> do
+          TyPointer _ ta -> do
             a <- freshVal ta
             ve <- eval mempty e
             void $ store ve a
             pure $ Just a
-          _ -> err100 "expected main argument to have pointer type" e
+          _ -> err100ST "expected main argument to have pointer type" e
 
 simplifyFunc :: Bool -> Exported -> IO Func
 simplifyFunc ssb x = case x of
@@ -70,12 +77,12 @@ simplifyFunc ssb x = case x of
     mainArg <- mainArgOf ds
     env <- evalExpDecls (initEnv ssb) [ a | ExpDecl _ a <- ds ]
     let r = case lookup_ v env of
-          VUnit -> VScalar $ VInt 0
+          VUnit pos -> VScalar pos $ VInt pos 0
           val -> val
     blk <- evalBlockM $ exitPrim r
     bds <- gets decls
     pure $ Func
-      { retTy = TyInt 32
+      { retTy = TyInt (positionOf v) 32
       , arg = mainArg
       , body = blk{ blockDecls = reverse bds ++ blockDecls blk }
       }
@@ -85,7 +92,7 @@ simplifyFunc ssb x = case x of
     env <- evalExpDecls (initEnv ssb) [ a | ExpDecl _ a <- ds ]
     let val = lookup_ (qnToLIdent q) env
     case (val, ty) of
-      (XVLam env' (Immediate _ pat) e, TyFun ta tb) -> do
+      (XVLam _ env' (Immediate _ pat) e, TyFun _ ta tb) -> do
         va <- freshVal ta
         env'' <- match pat va
         r <- eval (env'' <> env') e
@@ -96,29 +103,41 @@ simplifyFunc ssb x = case x of
           , arg = va
           , body = blk{ blockDecls = reverse bds ++ blockDecls blk }
           }
-      _ -> err111 "unable to export function (only immediate single arity functions can be exported)" q t noTCHint
+      _ -> err111ST "unable to export function (only immediate single arity functions can be exported)" q t noTCHint
+
+err100ST :: (Positioned a, Pretty a) => Doc () -> a -> M c
+err100ST msg a = lift $ TC.err100ST msg a
+
+err101ST :: (Positioned a, Pretty a, Pretty b) => Doc () -> a -> b -> M c
+err101ST msg a c = lift $ TC.err101ST msg a c
+
+err111ST :: (Positioned a, Pretty a, Pretty b, Positioned b, Pretty c) => Doc () -> a -> b -> c -> M d
+err111ST msg a b c = lift $ TC.err111ST msg a b c
 
 initEnv :: Bool -> Env
-initEnv b = Map.insert (mkTok noPosition "Prim.slow-safe-build") (VScalar $ VBool b) $ Map.mapWithKey (\nm _ -> XVCall nm) primCalls
+initEnv b =
+  Map.insert (mkTok noPosition "Prim.slow-safe-build") (VScalar noPosition $ VBool noPosition b) $
+  Map.mapKeys (\nm -> LIdent noPosition $ textOf nm) $
+  Map.mapWithKey (\nm _ -> XVCall noPosition nm) primCalls
 
 evalCaseAlt :: Env -> Val -> CaseAlt -> M (Maybe Alt)
 evalCaseAlt env val0 (CaseAlt _ altp e) = case altp of
   PDefault _ v -> Just . AltDefault <$> evalBlock (Map.insert v val0 env) e
   PScalar _ a -> Just . AltScalar (scalarToVScalar a) <$> evalBlock env e
   PEnum _ c -> case val0 of
-    VSum _ m -> case Map.lookup c m of
+    VSum _ _ m -> case Map.lookup c m of
       Just Nothing -> Just <$> (AltScalar <$> evalCon c <*> evalBlock env e)
-      Just (Just _) -> err101 "unexpected enum pattern on sum" c val0
+      Just (Just _) -> err101ST "unexpected enum pattern on sum" c val0
       Nothing -> pure Nothing
-    _ -> err101 "unexpected enum pattern" altp val0
+    _ -> err101ST "unexpected enum pattern" altp val0
   PCon _ c p -> case val0 of
-    VSum _ m -> case Map.lookup c m of
+    VSum _ _ m -> case Map.lookup c m of
       Just (Just cval) -> do
         env' <- match p cval
         Just <$> (AltScalar <$> evalCon c <*> evalBlock (env' <> env) e)
-      Just Nothing -> err101 "unexpected sum pattern on enum" p val0
+      Just Nothing -> err101ST "unexpected sum pattern on enum" p val0
       Nothing -> pure Nothing
-    _ -> err101 "unexpected sum pattern" altp val0
+    _ -> err101ST "unexpected sum pattern" altp val0
 
 -- this makes lots of extra registers, counting on the llvm optimizer to clean them up
 -- e.g. 1 register can be used for the results of a multiway if but we make n - 1
@@ -143,7 +162,7 @@ evalXVTailRecDecls :: Env -> Map LIdent TailRecDecl -> LIdent -> Val -> M (TailC
 evalXVTailRecDecls env m0 nm0 val0 = do
   bs <- sequence [ ((v, d),) <$> freshTailCallId v | (v, d) <- Map.toList m0 ]
   let m = Map.fromList [ (tcid, d) | ((_, d), tcid) <- bs ]
-  let env' = Map.fromList [ (v, XVTailCall tcid) | ((v, _), tcid) <- bs ]
+  let env' = Map.fromList [ (v, XVTailCall (positionOf v) tcid) | ((v, _), tcid) <- bs ]
 
   case [ tcid | ((v, _), tcid) <- bs, v == nm0 ] of
     [] -> unreachable001 "evalXVTailRecDecls: empty tcids" ()
@@ -161,8 +180,8 @@ evalXVTailRecDecls' env m0 tcid0 val0 = go m0 [(tcid0, val0)]
       ((tcid, (trArg, blk)) :) <$> go (Map.delete tcid m) (rest ++ blockTailCalls blk)
 
 evalTailRecDecls :: Env -> TailRecDecls -> Env
-evalTailRecDecls env (TailRecDecls _ ds) =
-  Map.mapWithKey (\k _ -> XVTailRecDecls env m k) m
+evalTailRecDecls env (TailRecDecls pos ds) =
+  Map.mapWithKey (\k _ -> XVTailRecDecls pos env m k) m
   where
     m = Map.fromList [ (nm, b) | b@(TailRecDecl _ nm _ _) <- toList ds ]
 
@@ -175,16 +194,16 @@ evalFieldDecls env xs = Map.fromList <$> mapM (evalFieldDecl env) (toList xs)
 match :: Pat -> Val -> M Env
 match p0 x = case (p0, x) of
   (PVar _ v, _) -> pure $ Map.singleton v x
-  (PUnit _ , VUnit) -> pure mempty
+  (PUnit _ , VUnit _) -> pure mempty
   (PTyped _ p _, _) -> match p x
   (PParens _ p, _) -> match p x
-  (PTuple _ ps, VTuple xs) | length2 ps == length2 xs ->
+  (PTuple _ ps, VTuple _ xs) | length2 ps == length2 xs ->
     Map.unions <$> zipWithM match (toList ps) (toList xs)
-  (PTuple{}, VPtr _ (VTuple xs)) -> match p0 $ VTuple $ fmap mkVPtr xs
-  _ -> err101 "pattern match failure" p0 x
+  (PTuple{}, VPtr pos _ (VTuple _ xs)) -> match p0 $ VTuple pos $ fmap mkVPtr xs
+  _ -> err101ST "pattern match failure" p0 x
 
 mkVPtr :: Val -> Val
-mkVPtr x = VPtr (typeOf x) x
+mkVPtr x = VPtr (positionOf x) (typeOf x) x
 
 evalExpDecls :: Env -> [ExpDecl] -> M Env
 evalExpDecls = go
@@ -207,7 +226,7 @@ freshTailCallId v = do
 
 evalBinding :: Env -> Binding -> Exp -> M Env
 evalBinding env x e = case x of
-  Delayed _ v -> pure $ Map.singleton v $ XVDelay env e
+  Delayed _ v -> pure $ Map.singleton v $ XVDelay (positionOf e) env e
   Immediate _ p -> eval env e >>= match p
 
 canBeDelayed :: LIdent -> Exp -> Bool
@@ -216,30 +235,30 @@ canBeDelayed v e = case filter (== nameOf v) $ freeVarsOf e of
   _ -> True
 
 eval :: Env -> Exp -> M Val
-eval env x = case x of
+eval env x = traceEval x $ case x of
     Qualified pos c v -> eval env $ Var pos $ mkQName (textOf c) v
-    Var _ v -> case Map.lookup v env of
-      Nothing -> err100 "unknown variable" v
+    Var _ v -> traceEval v $ case Map.lookup v env of
+      Nothing -> err100ST "unknown variable" v
       Just val -> case val of
-        XVDelay env' e -> eval env' e
+        XVDelay _ env' e -> eval env' e
         _ -> pure val
 
-    Lam _ bs e -> pure $ XVLam env bs e
+    Lam pos bs e -> pure $ XVLam pos env bs e
 
     App _ a b -> do
       va <- eval env a
       case va of
-        XVCall nm -> do
+        XVCall _ nm -> do
           tbl <- gets calls
           eval env b >>= lookup_ nm tbl
 
-        XVTailCall nm -> do
+        XVTailCall pos nm -> do
           vb <- eval env b
           pushTailCall nm vb
           pushDecl $ VTailCall nm vb
-          pure XVNone
+          pure $ XVNone pos
 
-        XVTailRecDecls env' m nm -> do
+        XVTailRecDecls _ env' m nm -> do
           vb <- eval env b
           (tcid, tds) <- evalXVTailRecDecls env' m nm vb
           (r, rs) <- joinVals $ fmap (blockResult . snd . snd) tds
@@ -248,7 +267,7 @@ eval env x = case x of
           pushDecl $ VLet r $ VCallTailCall tcid vb
           pure r
 
-        XVLam env' bnd e -> do
+        XVLam _ env' bnd e -> do
             let bnd' = case bnd of
                   Immediate _ (PVar pos var) | canBeDelayed var e -> Delayed pos var
                   _ -> bnd
@@ -256,22 +275,21 @@ eval env x = case x of
             let env''' = env'' <> env'
             eval env''' e
 
-        VSum con m -> do
+        VSum pos con m -> do
           vb <- eval env b
           case Map.toList m of
-            [(c, Nothing)] -> pure $ VSum con $ Map.singleton c $ Just vb
-            _ -> err101 "unexpected sum value in application" a va
-        _ -> err101 "unexpected value in application" a va
+            [(c, Nothing)] -> pure $ VSum pos con $ Map.singleton c $ Just vb
+            _ -> err101ST "unexpected sum value in application" a va
+        _ -> err101ST "unexpected value in application" a va
 
-    Extern _ s t -> do
+    Extern pos s t -> do
       t' <- evalType_ t
       checkExtern t t'
-      let nm = mkTok (positionOf s) $ textOf s
       case t' of
-        TyFun _ rt -> do
-          modify' $ \st -> st{ calls = Map.insert nm (fun rt nm) $ calls st }
-          pure $ XVCall nm
-        _ -> pure $ VScalar $ VExtern nm t'
+        TyFun _ _ rt -> do
+          modify' $ \st -> st{ calls = Map.insert s (fun rt s) $ calls st }
+          pure $ XVCall pos s
+        _ -> pure $ VScalar pos $ VExtern pos s t'
 
     Case _ a bs -> do
       va <- eval env a
@@ -281,13 +299,13 @@ eval env x = case x of
     Do pos (c :| cs) -> case cs of
       [] -> case c of
         Stmt _ e -> eval env e
-        _ -> err100 "last element of 'do' expression must be an expression" c
+        _ -> err100ST "last element of 'do' expression must be an expression" c
       _ -> case c of
         Stmt _ e -> do
           vc <- eval env e
           case vc of
-            VUnit -> pure ()
-            _ -> err101 "value discarded in 'do' expression" c vc
+            VUnit _ -> pure ()
+            _ -> err101ST "value discarded in 'do' expression" c vc
           eval env $ Do pos $ NE.fromList cs
         Let _ p e -> do
           env' <- eval env e >>= match p
@@ -312,49 +330,46 @@ eval env x = case x of
       _ <- eval env a >>= assertWithMessage "'if' is never true"
       eval env b
 
-    EType _ a -> VType <$> evalType_ a
+    EType pos a -> VType pos <$> evalType_ a
 
     Typed _ a _ -> eval env a
 
-    Record _ bs -> VRecord . Map.fromList <$> mapM (evalFieldDecl env) (toList bs)
+    Record pos bs -> VRecord pos . Map.fromList <$> mapM (evalFieldDecl env) (toList bs)
 
     With _ a bs -> do
       val <- eval env a
       case val of
-        VRecord m -> do
+        VRecord pos m -> do
           n <- evalFieldDecls env bs
-          pure $ VRecord (n `Map.union` m)
-        _ -> err101 "expected record in 'with' expression" a (typeOf val)
+          pure $ VRecord pos (n `Map.union` m)
+        _ -> err101ST "expected record in 'with' expression" a (typeOf val)
 
     Select _ a fld -> do
       val <- eval env a
       case val of
-        VRecord m -> lookupField a fld m
-        VPtr _ (VRecord m) -> mkVPtr <$> lookupField a fld m
-        _ -> err101 "expected record in 'select' expression" a (typeOf val)
+        VRecord _ m -> lookupField a fld m
+        VPtr _ _ (VRecord _ m) -> mkVPtr <$> lookupField a fld m
+        _ -> err101ST "expected record in 'select' expression" a (typeOf val)
 
-    PrefixOper pos op a -> do
+    PrefixOper pos op a -> traceEval op $ do
       tbl <- lift $ lift $ gets prefixOps
       eval env $ App pos (Var pos $ lookup_ op tbl) a
 
-    InfixOper pos a op b -> do
+    InfixOper pos a op b -> traceEval op $ do
       tbl <- lift $ lift $ gets infixOps
       eval env $ App pos (App pos (Var pos $ lookup_ op tbl) a) b
 
-    Array _ bs -> do
-      vs <- mapM (evalWithPos env) bs
-      t <- unifies $ fmap (second typeOf) vs
-      pure $ VArray (TyArray (fromIntegral $ NE.length bs) t) $ fmap snd vs
-    Tuple _ bs -> VTuple <$> mapM (eval env) bs
+    Array pos bs -> do
+      vs <- mapM (eval env) bs
+      t <- unifies $ fmap typeOf vs
+      pure $ VArray pos (TyArray pos (fromIntegral $ NE.length bs) t) vs
+    Tuple pos bs -> VTuple pos <$> mapM (eval env) bs
     Parens _ a -> eval env a
-    Unit _ -> pure VUnit
+    Unit pos -> pure $ VUnit pos
 
-    Con _ c -> do
+    Con pos c -> do
       vc <- evalCon c
-      pure $ VSum (VScalar vc) $ Map.singleton c Nothing
+      pure $ VSum pos (VScalar pos vc) $ Map.singleton c Nothing
 
-    Scalar _ a -> pure $ VScalar $ scalarToVScalar a
-
-evalWithPos :: Env -> Exp -> M (Position, Val)
-evalWithPos env x = (positionOf x, ) <$> eval env x
+    Scalar pos a -> pure $ VScalar pos $ scalarToVScalar a
 

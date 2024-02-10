@@ -61,9 +61,6 @@ instance (Pretty a, Pretty b) => Pretty (Either a b) where
 lookup_ :: (Pretty k, Ord k) => k -> Map k a -> a
 lookup_ k tbl = fromMaybe (unreachable "unexpected lookup failure" k) $ Map.lookup k tbl
 
-class Tok a where
-  mkTok :: Position -> Text -> a
-
 nameOf :: (Positioned a, HasText a) => a -> Name
 nameOf x = Name (positionOf x) (textOf x)
 
@@ -78,41 +75,6 @@ noTCHint = "is type checking disabled?"
 
 mkQName :: (Tok a, HasText a, Positioned a) => Text -> a -> a
 mkQName a b = mkTok (positionOf b) (mkQNameText a $ textOf b)
-
-mkQNameText :: Text -> Text -> Text
-mkQNameText a b = a <> "." <> b
-
-instance HasText QualLIdent where
-  textOf x = case x of
-    Qual _ a b -> mkQNameText (textOf a) (textOf b)
-    UnQual _ a -> textOf a
-
-instance HasText LIdent where
-  textOf (LIdent _ s) = s
-
-instance Tok LIdent where
-  mkTok = LIdent
-
-instance HasText InfixOp where
-  textOf (InfixOp _ s) = s
-
-instance HasText PrefixOp where
-  textOf (PrefixOp _ s) = s
-
-instance Tok PrefixOp where
-  mkTok = PrefixOp
-
-instance HasText AString where
-  textOf (AString _ s) = s
-
-instance HasText ADouble where
-  textOf (ADouble _ s) = s
-
-instance HasText UIdent where
-  textOf (UIdent _ s) = s
-
-instance Tok UIdent where
-  mkTok = UIdent
 
 data Name = Name Position Text deriving (Data)
 
@@ -162,30 +124,6 @@ unionWithM f m n = mapM g $ Map.unionWith h (fmap Right m) (fmap Right n)
 
 instance Pretty a => Pretty (Set a) where
   pretty x = braced $ fmap pretty (Set.toList x)
-
-instance Ord UIdent where
-  compare a b = compare (textOf a) (textOf b)
-
-instance Ord LIdent where
-  compare a b = compare (textOf a) (textOf b)
-
-instance Ord PrefixOp where
-  compare a b = compare (textOf a) (textOf b)
-
-instance Eq UIdent where
-  a == b = textOf a == textOf b
-
-instance Eq LIdent where
-  a == b = textOf a == textOf b
-
-instance Eq PrefixOp where
-  a == b = textOf a == textOf b
-
-instance Ord InfixOp where
-  compare a b = compare (textOf a) (textOf b)
-
-instance Eq InfixOp where
-  a == b = textOf a == textOf b
 
 instance Ord Name where
   compare a b = compare (textOf a) (textOf b)

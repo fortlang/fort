@@ -43,7 +43,6 @@ data Options = Options
   , noBuild :: Bool
   , doRun :: Bool
   , noANSI :: Bool
-  , traceTypes :: Bool
   , runTimeChecks :: Bool
   , mainIs :: Text
   , files :: [FilePath]
@@ -64,7 +63,6 @@ options = Options
   <*> switch (long "no-build" <> short 'B' <> help "don't compile the resulting code")
   <*> switch (long "run" <> short 'r' <> help "run the resulting executable (.exe) file after building")
   <*> switch (long "no-ansi" <> short 'A' <> help "don't output colorized (ANSI) output")
-  <*> switch (long "trace" <> short 't' <> help "trace each step of type resolution")
   <*> switch (long "checks" <> short 'c' <> help "turn on extra run-time checks")
   <*> strOption (long "main-is" <> metavar "FUNCTION" <> showDefault <> value "main" <> short 'm' <> help "name of function to generate code for")
   <*> some (argument str (metavar "FILES..."))
@@ -99,7 +97,7 @@ fort opts = do
           msdeps <- dependenciesModules mainNm fns msops
           when (showDependencies opts) $ mapM_ (pp "(deps)") msdeps
           when doSimplify $ do
-            unless (noTypeChecker opts) $ typeCheckModules (traceTypes opts) msdeps
+            unless (noTypeChecker opts) $ typeCheckModules msdeps
             msstmts <- simplifyModules (runTimeChecks opts) msdeps
             
             when (showSimplify opts) $ mapM_ (pp "(simplify)") msstmts
@@ -158,7 +156,7 @@ runExeFn (fn, bt) = do
   putStrLn $ exeFn fn
   case bt of
     Exe -> do
-      callCommand $ exeFn fn
+      callCommand $ "./" ++ exeFn fn
       putStrLn ""
     _ -> putStrLn "no .exe (no main found)"
 

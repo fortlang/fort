@@ -18,14 +18,14 @@ import qualified Fort.Val as Val
 filModules :: [(FilePath, Val.Prog)] -> [(FilePath, Prog)]
 filModules xs = [ (fn, fmap filFunc prg) | (fn, prg) <- xs ]
 
-type Prog = Map Text Func
+type Prog = Map AString Func
 
 filFunc :: Val.Func -> Func
 filFunc x = Func
   { retTy = fromTy $ Val.retTy x
   , args = fmap fromVal $ case Val.arg x of
-      Val.VUnit -> []
-      Val.VTuple vs -> toList vs
+      Val.VUnit _ -> []
+      Val.VTuple _ vs -> toList vs
       v -> [v]
   , body = fromBlock $ rewriteBi Val.flattenVal $ Val.body x
   }
@@ -53,7 +53,7 @@ data Decl
   deriving (Show, Data)
 
 data Stmt
-  = Call LIdent [Val]
+  = Call AString [Val]
   | Switch Val Block [Alt]
   | If Val Block Block
   | CallTailCall TailCallId [Val]
@@ -64,41 +64,86 @@ data Alt
   deriving (Show, Data)
 
 data Val
-  = Unit
-  | Type Ty
-  | Scalar Scalar
-  deriving (Show, Eq, Data)
+  = Unit Position
+  | Type Position Ty
+  | Scalar Position Scalar
+  deriving (Show, Data)
 
-data Register = Reg{ registerTy :: Ty, registerId :: RegisterId } deriving (Show, Eq, Data)
+instance Positioned Val where
+  positionOf x = case x of
+    Unit pos -> pos
+    Type pos _ -> pos
+    Scalar pos _ -> pos
+
+instance Eq Val where
+  x == y = case (x, y) of
+    (Unit _, Unit _) -> True
+    (Type _ a, Type _ b) -> a == b
+    (Scalar _ a, Scalar _ b) -> a == b
+    _ -> False
+
+data Register = Reg{ registerTy :: Ty, registerId :: RegisterId } deriving (Show, Data)
+
+instance Eq Register where
+  x == y = registerId x == registerId y
 
 data Ty
-  = TyUnit
-  | TyOpaque
-  | TyPointer Ty
-  | TyEnum
-  | TyString
-  | TyChar Sz
-  | TyFloat Sz
-  | TyInt Sz
-  | TyUInt Sz
-  | TyBool
-  | TyArray Sz Ty
-  deriving (Show, Eq, Data)
+  = TyUnit Position
+  | TyOpaque Position
+  | TyPointer Position Ty
+  | TyEnum Position
+  | TyString Position
+  | TyChar Position Sz
+  | TyFloat Position Sz
+  | TyInt Position Sz
+  | TyUInt Position Sz
+  | TyBool Position
+  | TyArray Position Sz Ty
+  deriving (Show, Data)
+
+instance Eq Ty where
+  x == y = case (x, y) of
+    (TyUnit _, TyUnit _) -> True
+    (TyOpaque _, TyOpaque _) -> True
+    (TyPointer _ a, TyPointer _ b) -> a == b
+    (TyEnum _, TyEnum _) -> True
+    (TyString _, TyString _) -> True
+    (TyChar _ a, TyChar _ b) -> a == b
+    (TyFloat _ a, TyFloat _ b) -> a == b
+    (TyInt _ a, TyInt _ b) -> a == b
+    (TyUInt _ a, TyUInt _ b) -> a == b
+    (TyBool _, TyBool _) -> True
+    (TyArray _ a b, TyArray _ c d) -> a == c && b == d
+    _ -> False
+
+instance Positioned Ty where
+  positionOf x = case x of
+    TyUnit pos -> pos
+    TyOpaque pos -> pos
+    TyPointer pos _ -> pos
+    TyEnum pos -> pos
+    TyString pos -> pos
+    TyChar pos _ -> pos
+    TyFloat pos _ -> pos
+    TyInt pos _ -> pos
+    TyUInt pos _ -> pos
+    TyBool pos -> pos
+    TyArray pos _ _ -> pos
 
 bitsize :: Ty -> Sz
 bitsize x = case x of
-  TyPointer _ -> bitsizePointer
-  TyEnum -> 32
-  TyString -> bitsizePointer
-  TyChar a -> a
-  TyFloat a -> a
-  TyInt a -> a
-  TyUInt a -> a
-  TyBool -> 1
+  TyPointer _ _ -> bitsizePointer
+  TyEnum _ -> 32
+  TyString _ -> bitsizePointer
+  TyChar _ a -> a
+  TyFloat _ a -> a
+  TyInt _ a -> a
+  TyUInt _ a -> a
+  TyBool _ -> 1
   _ -> unreachable "unexpected type as input to bitsize" x
 
 isTyUnit :: Ty -> Bool
-isTyUnit TyUnit = True
+isTyUnit TyUnit{} = True
 isTyUnit _ = False
 
 class TypeOf a where
@@ -109,48 +154,75 @@ instance TypeOf Register where
 
 instance TypeOf Val where
   typeOf x = case x of
-    Unit -> TyUnit
-    Scalar a -> typeOf a
-    Type _ -> unreachable "unable to take typeOf type value" x
+    Unit pos -> TyUnit pos
+    Scalar _ a -> typeOf a
+    Type{} -> unreachable "unable to take typeOf type value" x
 
 data Scalar
-  = String Text
-  | Char Char
-  | Float Double
-  | Int Integer
-  | UInt Integer
-  | Bool Bool
-  | Enum UIdent Integer
-  | Undef Ty
-  | Extern LIdent Ty
-  | Register Register
-  deriving (Show, Eq, Data)
+  = String Position Text
+  | Char Position Char
+  | Float Position Double
+  | Int Position Integer
+  | UInt Position Integer
+  | Bool Position Bool
+  | Enum Position UIdent Integer
+  | Undef Position Ty
+  | Extern Position AString Ty
+  | Register Position Register
+  deriving (Show, Data)
+
+instance Eq Scalar where
+  x == y = case (x, y) of
+    (String _ a, String _ b) -> a == b
+    (Char _ a, Char _ b) -> a == b
+    (Float _ a, Float _ b) -> a == b
+    (Int _ a, Int _ b) -> a == b
+    (UInt _ a, UInt _ b) -> a == b
+    (Bool _ a, Bool _ b) -> a == b
+    (Enum _ a b, Enum _ c d) -> a == c && b == d
+    (Undef _ a, Undef _ b) -> a == b
+    (Extern _ a b, Extern _ c d) -> a == c && b == d
+    (Register _ a, Register _ b) -> a == b
+    _ -> False
+
+instance Positioned Scalar where
+  positionOf x = case x of
+    String pos _ -> pos
+    Char pos _ -> pos
+    Float pos _ -> pos
+    Int pos _ -> pos
+    UInt pos _ -> pos
+    Bool pos _ -> pos
+    Enum pos _ _ -> pos
+    Undef pos _ -> pos
+    Extern pos _ _ -> pos
+    Register pos _ -> pos
 
 instance Pretty Scalar where
   pretty x = case x of
-    String a -> pretty $ show a
-    Char a -> pretty $ show a
-    Float a -> pretty a
-    Int a -> pretty a
-    UInt a -> pretty a
-    Bool a -> pretty a
-    Undef t -> "<undef" <+> pretty t <> ">"
-    Enum a _ -> "tag" <+> pretty a
-    Extern nm _ -> "<extern" <+> pretty nm <+> ">"
-    Register r -> pretty r
+    String _ a -> pretty $ show a
+    Char _ a -> pretty $ show a
+    Float _ a -> pretty a
+    Int _ a -> pretty a
+    UInt _ a -> pretty a
+    Bool _ a -> pretty a
+    Undef _ t -> "<undef" <+> pretty t <> ">"
+    Enum _ a _ -> "tag" <+> pretty a
+    Extern _ nm _ -> "<extern" <+> pretty nm <+> ">"
+    Register _ r -> pretty r
 
 instance TypeOf Scalar where
   typeOf x = case x of
-    String _ -> TyString
-    Char _ -> TyChar 8
-    Float _ -> TyFloat 64
-    Int _ -> TyInt 32
-    UInt _ -> TyUInt 32
-    Bool _ -> TyBool
-    Enum _ _ -> TyEnum
-    Undef t -> t
-    Extern _ t -> t
-    Register a -> typeOf a
+    String pos _ -> TyString pos
+    Char pos _ -> TyChar pos 8
+    Float pos _ -> TyFloat pos 64
+    Int pos _ -> TyInt pos 32
+    UInt pos _ -> TyUInt pos 32
+    Bool pos _ -> TyBool pos
+    Enum pos _ _ -> TyEnum pos
+    Undef _ t -> t
+    Extern _ _ t -> t
+    Register _ a -> typeOf a
 
 fromAlt :: Val.Alt -> Alt
 fromAlt x = case x of
@@ -174,7 +246,7 @@ fromStmt x = case x of
 
 fromTuple :: Val.Val -> [Val]
 fromTuple x = fmap fromVal $ filter (not . Val.isNone) $ case x of
-  Val.VTuple bs -> toList bs
+  Val.VTuple _ bs -> toList bs
   _ -> [x]
 
 fromBlock :: Val.Block -> Block
@@ -197,51 +269,51 @@ fromRegister x = Reg
 
 fromVal :: Val.Val -> Val
 fromVal x = case x of
-  Val.VType t -> Type $ fromTy t
-  Val.VUnit -> Unit
-  Val.VScalar a -> Scalar $ fromVScalar a
+  Val.VType pos t -> Type pos $ fromTy t
+  Val.VUnit pos -> Unit pos
+  Val.VScalar pos a -> Scalar pos $ fromVScalar a
   _ -> unreachable "FIL.hs:fromVal:unexpected value" x
 
 fromVScalar :: VScalar -> Scalar
 fromVScalar x = case x of
-  VString a -> String a
-  VChar a -> Char a
-  VFloat a -> Float a
-  VInt a -> Int a
-  VUInt a -> UInt a
-  VBool a -> Bool a
-  VEnum a b -> Enum a b
-  VUndef t -> Undef $ fromTy t
-  VExtern a b -> Extern a $ fromTy b
-  VRegister a -> Register $ fromRegister a
+  VString pos a -> String pos a
+  VChar pos a -> Char pos a
+  VFloat pos a -> Float pos a
+  VInt pos a -> Int pos a
+  VUInt pos a -> UInt pos a
+  VBool pos a -> Bool pos a
+  VEnum pos a b -> Enum pos a b
+  VUndef pos t -> Undef pos $ fromTy t
+  VExtern pos a b -> Extern pos a $ fromTy b
+  VRegister pos a -> Register pos $ fromRegister a
   _ -> unreachable "fromVScalar: scalar not removed" x
 
 fromTy :: Type.Ty -> Ty
 fromTy x = case x of
-  Type.TyOpaque _ -> TyOpaque
-  Type.TyArray sz t -> TyArray sz $ fromTy t
-  Type.TyPointer ty -> TyPointer (fromTy ty)
-  Type.TyEnum _ -> TyEnum
-  Type.TyString -> TyString
-  Type.TyChar sz -> TyChar sz
-  Type.TyFloat sz -> TyFloat sz
-  Type.TyInt sz -> TyInt sz
-  Type.TyUInt sz -> TyUInt sz
-  Type.TyBool -> TyBool
-  Type.TyUnit -> TyUnit
+  Type.TyOpaque pos _ -> TyOpaque pos
+  Type.TyArray pos sz t -> TyArray pos sz $ fromTy t
+  Type.TyPointer pos ty -> TyPointer pos (fromTy ty)
+  Type.TyEnum pos _ -> TyEnum pos
+  Type.TyString pos -> TyString pos
+  Type.TyChar pos sz -> TyChar pos sz
+  Type.TyFloat pos sz -> TyFloat pos sz
+  Type.TyInt pos sz -> TyInt pos sz
+  Type.TyUInt pos sz -> TyUInt pos sz
+  Type.TyBool pos -> TyBool pos
+  Type.TyUnit pos -> TyUnit pos
   _ -> unreachable "fromTy: type not removed" x
 
 isTyInt :: Ty -> Bool
 isTyInt t = case t of
-  TyInt _ -> True
+  TyInt{} -> True
   _ -> False
 
 isUIntTy :: Ty -> Bool
 isUIntTy x = case x of
-  TyUInt _ -> True
-  TyChar _ -> True
-  TyEnum -> True
-  TyBool -> True
+  TyUInt{} -> True
+  TyChar{} -> True
+  TyEnum{} -> True
+  TyBool{} -> True
   _ -> False
 
 isIntTy :: Ty -> Bool
@@ -249,12 +321,12 @@ isIntTy x = isTyInt x || isUIntTy x
 
 isTyPointer :: Ty -> Bool
 isTyPointer t = case t of
-  TyPointer _ -> True
+  TyPointer{} -> True
   _ -> False
 
 isTyFloat :: Ty -> Bool
 isTyFloat t = case t of
-  TyFloat _ -> True
+  TyFloat{} -> True
   _ -> False
 
 ppTuple :: [Doc ann] -> Doc ann
@@ -268,7 +340,7 @@ instance Pretty Decl where
     TailRecDecls _ m -> "tailrec" <+> vlist ""
       [ pretty a <+> "= \\" <+> ppTuple (fmap pretty bs) <+> "->" <+> pretty c | (a, (bs, c)) <- Map.toList m ]
     Let a b -> case a of
-      [Unit] -> pretty b
+      [Unit _] -> pretty b
       _ -> ppTuple (fmap pretty a) <+> "=" <+> pretty b
     TailCall a b -> "tailcall" <+> pretty a <+> ppTuple (fmap pretty b)
 
@@ -293,17 +365,17 @@ instance Pretty Alt where
 
 instance Pretty Ty where
   pretty x = case x of
-    TyOpaque -> "<Opaque>"
-    TyUnit -> "()"
-    TyPointer t -> "Pointer" <+> f t
-    TyArray sz t -> "Array" <+> pretty sz <+> f t
-    TyEnum  -> "Enum"
-    TyString -> "String"
-    TyChar sz -> "C" <> pretty sz
-    TyFloat sz -> "F" <> pretty sz
-    TyInt sz -> "I" <> pretty sz
-    TyUInt sz -> "U" <> pretty sz
-    TyBool -> "Bool"
+    TyOpaque _ -> "<Opaque>"
+    TyUnit _ -> "()"
+    TyPointer _ t -> "Pointer" <+> f t
+    TyArray _ sz t -> "Array" <+> pretty sz <+> f t
+    TyEnum _ -> "Enum"
+    TyString _ -> "String"
+    TyChar _ sz -> "C" <> pretty sz
+    TyFloat _ sz -> "F" <> pretty sz
+    TyInt _ sz -> "I" <> pretty sz
+    TyUInt _ sz -> "U" <> pretty sz
+    TyBool _ -> "Bool"
     where
       f ty = case ty of
         TyArray{} -> parens (pretty ty)
@@ -316,9 +388,9 @@ instance Pretty Ty where
 
 instance Pretty Val where
   pretty x = case x of
-    Type t -> "`" <> pretty t <> "`"
-    Unit -> "()"
-    Scalar a -> pretty a
+    Type _ t -> "`" <> pretty t <> "`"
+    Unit _ -> "()"
+    Scalar _ a -> pretty a
 
 instance Pretty Register where
   pretty x = pretty (registerId x)

@@ -9,9 +9,12 @@ module Fort.Errors
 , err100
 , err101
 , err110
+, err11n
 , err111
 , err10n
 , err1n0
+, err1n1
+, errnn1
 , errn00
 , errn01
 , noPosition
@@ -23,10 +26,12 @@ module Fort.Errors
 , textOf
 , unreachable
 , unreachable100
+, unreachable110
 , unreachable001
 , unreachable00n
 , unreachable101
 , unreachablen01
+, getLineAt
 )
 
 where
@@ -101,6 +106,9 @@ unreachable101 msg b d = throwUE msg [ (pretty b, positionOf b) ] [] ["unreachab
 unreachable100 :: (MonadIO m, Pretty b, Positioned b) => Doc () -> b -> m a
 unreachable100 msg b = throwUE msg [ (pretty b, positionOf b) ] [] ["unreachable"]
 
+unreachable110 :: (MonadIO m, Pretty b, Positioned b, Pretty c, Positioned c) => Doc () -> b -> c -> m a
+unreachable110 msg b c = throwUE msg [ (pretty b, positionOf b) ] [(pretty c, positionOf c)] ["unreachable"]
+
 err110 :: (MonadIO m, Pretty b, Positioned b, Pretty c, Positioned c) => Doc () -> b -> c -> m a
 err110 msg b c = throwUE msg [ (pretty b, positionOf b) ] [(pretty c, positionOf c)] []
 
@@ -110,14 +118,23 @@ err101 msg b d = throwUE msg [ (pretty b, positionOf b) ] [] [pretty d]
 errn01 :: (MonadIO m, Pretty b, Positioned b, Pretty d) => Doc () -> [b] -> d -> m a
 errn01 msg bs d = throwUE msg [ (pretty b, positionOf b) | b <- bs ] [] [pretty d]
 
+errnn1 :: (MonadIO m, Pretty b, Positioned b, Pretty c, Positioned c, Pretty d) => Doc () -> [b] -> [c] -> d -> m a
+errnn1 msg bs cs d = throwUE msg [ (pretty b, positionOf b) | b <- bs ] [ (pretty c, positionOf c) | c <- cs ] [pretty d]
+
 err10n :: (MonadIO m, Pretty b, Positioned b, Pretty d) => Doc () -> b -> [d] -> m a
 err10n msg b ds = throwUE msg [ (pretty b, positionOf b) ] [] (fmap pretty ds)
+
+err11n :: (MonadIO m, Pretty b, Positioned b, Pretty c, Positioned c, Pretty d) => Doc () -> b -> c -> [d] -> m a
+err11n msg b c ds = throwUE msg [ (pretty b, positionOf b) ] [ (pretty c, positionOf c) ] (fmap pretty ds)
 
 err100 :: (MonadIO m, Pretty b, Positioned b) => Doc () -> b -> m a
 err100 msg b = throwUE msg [ (pretty b, positionOf b) ] [] []
 
 err1n0 :: (MonadIO m, Pretty b, Positioned b, Pretty c, Positioned c) => Doc () -> b -> [c] -> m a
 err1n0 msg b cs = throwUE msg [ (pretty b, positionOf b) ] [ (pretty c, positionOf c) | c <- cs ] []
+
+err1n1 :: (MonadIO m, Pretty b, Positioned b, Pretty c, Positioned c, Pretty d) => Doc () -> b -> [c] -> d -> m a
+err1n1 msg b cs d = throwUE msg [ (pretty b, positionOf b) ] [ (pretty c, positionOf c) | c <- cs ] [pretty d]
 
 errn00 :: (MonadIO m, Pretty b, Positioned b) => Doc () -> [b] -> m a
 errn00 msg bs = throwUE msg [ (pretty b, positionOf b) | b <- bs ] [] []
@@ -166,9 +183,14 @@ toDiagnosePosition (mfn, mbegin) = do
 
 getPositionEnd :: FilePath -> Location -> IO Location
 getPositionEnd fn (j, i) = do
+  ln <- getLineAt fn j
+  case words $ drop (i - 1) ln of
+    [] -> pure (j, i + length ln)
+    w : _ -> pure (j, i + length w)
+
+getLineAt :: FilePath -> Int -> IO String
+getLineAt fn j = do
   s <- readFile fn
   case drop (j - 1) $ lines s of
     [] -> error "dropped too many lines"
-    ln : _ -> case words $ drop (i - 1) ln of
-      [] -> pure (j, i + length ln)
-      w : _ -> pure (j, i + length w)
+    ln : _ -> pure ln
