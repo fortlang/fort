@@ -1,4 +1,4 @@
-qualifier Prelude = "examples/prelude.fort"
+qualifier Prelude = "lib/prelude.fort"
 
 main = do
   n = if

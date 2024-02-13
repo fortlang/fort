@@ -12,10 +12,11 @@ typedef float float32_t;
 typedef double float64_t;
 typedef _Float16 float16_t;
 
+int getErrno();
+
 void termios_setRawMode();
 void termios_unsetRawMode();
 int getTerminalSize();
-long getFileSize(char *filename);
 
 double clock_gettime_monotonic();
 

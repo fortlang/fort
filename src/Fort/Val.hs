@@ -327,7 +327,7 @@ data Block = Block
   , blockResult :: Val
   } deriving (Show, Data)
 
-data Alt
+data Alt -- BAL: remove?
   = AltScalar VScalar Block
   | AltDefault Block
   deriving (Show, Data)
@@ -493,5 +493,20 @@ lookupField :: (Ord b, MonadIO m, Positioned b, Positioned c, Pretty b, Pretty c
 lookupField a fld m = case Map.lookup fld m of
   Nothing -> err111 "missing field in 'select' expression" fld a m
   Just v -> pure v
+
+switchValOf :: Val -> M Val
+switchValOf x = case x of
+  VSum _ c _ | isSwitchVal c -> pure c
+  VScalar{} | isSwitchVal x -> pure x
+  _ -> err101 "unexpected switch value in 'case' expression" x noTCHint
+
+switch :: Val -> [(VScalar, Block)] -> Block -> M Val
+switch val alts dflt = do
+  tg <- switchValOf val
+
+  (r, rdflt : ralts) <- joinVals $ blockResult dflt : fmap (blockResult . snd) alts
+  pushDecl $ VLet r $ VSwitch tg (dflt{ blockResult = rdflt }) [ AltScalar a b{ blockResult = rb } | (rb, (a, b)) <- zip ralts alts ]
+  pure r
+
 
 

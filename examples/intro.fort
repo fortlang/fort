@@ -6,7 +6,7 @@
 ;; this is the main program
 ;; if you are using fort to build an executable (not a library) you'll need a main defined somewhere
 
-qualifier Prelude = "./examples/prelude.fort"
+qualifier Prelude = "lib/prelude.fort"
 ;; ^ The 'qualifier' declaration is how fort knows to pull in other files.
 ;; It doesn't have to be at the top of the file.  In fact, declarations in fort files can be in
 ;; any order.

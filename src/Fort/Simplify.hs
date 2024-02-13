@@ -111,6 +111,9 @@ err100ST msg a = lift $ TC.err100ST msg a
 err101ST :: (Positioned a, Pretty a, Pretty b) => Doc () -> a -> b -> M c
 err101ST msg a c = lift $ TC.err101ST msg a c
 
+err10nST :: (Positioned a, Pretty a, Pretty b) => Doc () -> a -> [b] -> M c
+err10nST msg a bs = lift $ TC.err10nST msg a bs
+
 err111ST :: (Positioned a, Pretty a, Pretty b, Positioned b, Pretty c) => Doc () -> a -> b -> c -> M d
 err111ST msg a b c = lift $ TC.err111ST msg a b c
 
@@ -120,23 +123,54 @@ initEnv b =
   Map.mapKeys (\nm -> LIdent noPosition $ textOf nm) $
   Map.mapWithKey (\nm _ -> XVCall noPosition nm) primCalls
 
-evalCaseAlt :: Env -> Val -> CaseAlt -> M (Maybe Alt)
-evalCaseAlt env val0 (CaseAlt _ altp e) = case altp of
-  PDefault _ v -> Just . AltDefault <$> evalBlock (Map.insert v val0 env) e
-  PScalar _ a -> Just . AltScalar (scalarToVScalar a) <$> evalBlock env e
+insertAlt :: (VScalar, Block) -> [(VScalar, Block)] -> M [(VScalar, Block)]
+insertAlt alt@(k, _) alts = case filter (== k) $ fmap fst alts of
+  [] -> pure (alt : alts)
+  ks -> err10nST "duplicate alternative" k ks
+
+evalCaseAlts :: [(VScalar, Block)] -> Env -> Val -> [CaseAlt] -> M Val
+evalCaseAlts alts _ val0 [] = case alts of
+  [] -> err101ST "no alternatives match" val0 noTCHint
+  (vsclr, blk) : alts' -> case typeOf val0 of
+    TySum _ m -> if
+      | Map.null m -> do
+          tg <- switchValOf val0
+          blk' <- evalBlockM (eqVal tg (VScalar (positionOf vsclr) vsclr) >>= assertWithMessage "unmatched 'case' alternative")
+          switch val0 (reverse alts') blk{ blockDecls = blockDecls blk' ++ blockDecls blk }
+
+      | otherwise -> err10nST "'case' on sum type missing alternatives" val0 $ Map.keys m
+    _ -> err101ST "'case' on scalar type with no default given" val0 noTCHint
+
+evalCaseAlts alts env val0 (CaseAlt _ altp e : rest) = case altp of
+  PDefault _ v -> do
+    dflt <- evalBlock (Map.insert v val0 env) e
+    switch val0 (reverse alts) dflt
+
+  PScalar _ a -> do
+    alt <- (scalarToVScalar a, ) <$> evalBlock env e
+    alts' <- insertAlt alt alts
+    evalCaseAlts alts' env val0 rest
+
   PEnum _ c -> case val0 of
-    VSum _ _ m -> case Map.lookup c m of
-      Just Nothing -> Just <$> (AltScalar <$> evalCon c <*> evalBlock env e)
-      Just (Just _) -> err101ST "unexpected enum pattern on sum" c val0
-      Nothing -> pure Nothing
-    _ -> err101ST "unexpected enum pattern" altp val0
+    VSum pos k m -> case Map.lookup c m of
+      Nothing -> evalCaseAlts alts env val0 rest
+      Just (Just _) -> err101ST "unexpected enum pattern (sum pattern expected)" c val0
+      Just Nothing -> do
+         alt <- (,) <$> evalCon c <*> evalBlock env e
+         alts' <- insertAlt alt alts
+         evalCaseAlts alts' env (VSum pos k $ Map.delete c m) rest
+    _ -> err101ST "unexpected enum pattern for non-sum type" altp val0
+
   PCon _ c p -> case val0 of
-    VSum _ _ m -> case Map.lookup c m of
+    VSum pos k m -> case Map.lookup c m of
+      Nothing -> evalCaseAlts alts env val0 rest
+      Just Nothing -> err101ST "unexpected sum pattern (enum pattern expected)" p val0
       Just (Just cval) -> do
         env' <- match p cval
-        Just <$> (AltScalar <$> evalCon c <*> evalBlock (env' <> env) e)
-      Just Nothing -> err101ST "unexpected sum pattern on enum" p val0
-      Nothing -> pure Nothing
+        alt <- (,) <$> evalCon c <*> evalBlock (env' <> env) e
+        alts' <- insertAlt alt alts
+        evalCaseAlts alts' env (VSum pos k $ Map.delete c m) rest
+
     _ -> err101ST "unexpected sum pattern" altp val0
 
 -- this makes lots of extra registers, counting on the llvm optimizer to clean them up
@@ -293,8 +327,7 @@ eval env x = traceEval x $ case x of
 
     Case _ a bs -> do
       va <- eval env a
-      alts <- catMaybes <$> mapM (evalCaseAlt env va) (toList bs)
-      evalSwitch va alts
+      evalCaseAlts [] env va $ toList bs
 
     Do pos (c :| cs) -> case cs of
       [] -> case c of

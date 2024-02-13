@@ -174,6 +174,10 @@ argvp = extern "FORT_argv" `Pointer (Pointer (Array 256 (Pointer Char)))`
 argc = @argcp
 argv = @argvp
 
+arg1 = do
+  when (argc < 2) $ panic "expected at least 1 command line argument"
+  @(argv # 1)
+  
 repeat = repeat-from 0
 
 repeat-from = \i0 n f -> loop i0 $ \i -> if
@@ -219,4 +223,104 @@ puts = \s -> c-puts (cast s `Pointer Char`)
 
 operator |= = store-bit-or infix -1.0
 store-bit-or = \p i -> p := @p | i
+
+c-memcmp = extern "memcmp" `(Pointer Char, Pointer Char, Size) -> Int`
+
+memcmp = \p q n -> do
+  r = c-memcmp (cast p `Pointer Char`, cast q `Pointer Char`, cast n `Size`)
+  cast (r == 0) `Bool`
+
+c-strlen = extern "strlen" `Pointer Char -> Size`
+strlen = \s -> cast (c-strlen (cast s `Pointer Char`)) `Int`
+
+raw-mode = bracket set-raw-mode unset-raw-mode
+~unset-raw-mode = c-termios-unset-raw-mode ()
+~set-raw-mode = c-termios-set-raw-mode ()
+
+c-termios-set-raw-mode = extern "termios_setRawMode" `() -> ()`
+c-termios-unset-raw-mode = extern "termios_unsetRawMode" `() -> ()`
+
+c-get-terminal-size = extern "getTerminalSize" `() -> Int`
+
+~get-terminal-size = case c-get-terminal-size () of
+    0 -> Err
+    sz -> Ok { width = sz >> 16, height = sz & 0xffff }
+
+type File = Opaque "FILE"
+
+c-fread = extern "fread" `(Pointer Char, Size, Size, Pointer File) -> Size`
+c-fwrite = extern "fwrite" `(Pointer Char, Size, Size, Pointer File) -> Size`
+c-fclose = extern "fclose" `Pointer File -> Int`
+
+fread = \buf n fp -> do
+  c-fread (cast buf `Pointer Char`, cast 1 `Size`, cast n `Size`, fp)
+
+c-get-errno = extern "getErrno" `() -> Int`
+~errno = c-get-errno ()
+
+c-fseek = extern "fseek" `(Pointer File, U 64, Int) -> Int`
+c-ftell = extern "ftell" `Pointer File -> U 64`
+
+seek-set = 0
+seek-cur = 1
+seek-end = 2
+
+ftell = \fp -> do
+  r = c-ftell fp
+  if
+    r == cast -1 `U 64` -> ErrFTell errno
+    otherwise -> Ok r
+
+fseek = \fp offset whence -> case c-fseek (fp, cast offset `U 64`, cast whence `Int`) of
+  0 -> Ok ()
+  _ -> ErrFSeek errno
+
+fsize = \fp ->
+  with-ok (ftell fp) $ \i ->
+    with-ok-void (fseek fp 0 seek-end) $
+      with-ok (ftell fp) $ \j -> 
+        with-ok-void (fseek fp 0 i) $ Ok j
+
+c-fopen = extern "fopen" `(Pointer Char, Pointer Char) -> Pointer File`
+
+fopen = \fn mode -> do
+  fp = c-fopen (cast fn `Pointer Char`, cast mode `Pointer Char`)
+  if
+    is-null fp -> ErrFOpen errno
+    otherwise -> Ok fp
+
+fclose = \fp -> if
+  c-fclose fp == 0 -> Ok ()
+  otherwise -> ErrFClose errno
+
+with-ok-void = \x y -> with-ok x $ \() -> y
+
+with-ok = \x f -> case x of
+  Ok a -> f a
+  err -> err
+
+with-fopen = \fn perms f -> case fopen fn perms of
+  Ok fp -> do
+    a = f fp
+    case fclose fp of
+      Ok () -> a
+      err -> err
+  err -> err
+ 
+fread-contents = \fn buf -> do
+  with-fopen fn "r" $ \fp -> do
+    with-ok (fsize fp) $ \len -> do
+      buf-n = cast (countof buf) `U 64` 
+      if
+        len > buf-n -> ErrFReadContentsTooLarge (len, buf-n)
+        otherwise -> do
+	  n = fread buf len fp
+	  if
+            n < len -> ErrFReadContentsIncomplete (n, len)
+            otherwise -> Ok len
+
+is-null = \p -> p == cast 0 (typeof p)
+
+c-getchar = extern "getchar" `() -> Int`
+~getchar = cast (c-getchar ()) `Char`
 

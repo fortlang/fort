@@ -147,29 +147,56 @@ evalExpDecl env x = case x of
     matchBinding p t
   TailRec _ a -> envTailRecDecls env a
 
-evalCaseAlt :: TyEnv -> Ty -> CaseAlt -> M (Maybe (Ty, Maybe UIdent))
-evalCaseAlt env ty (CaseAlt _ altp e) = case altp of
-  PDefault _ v -> Just . (, Nothing) <$> eval (Map.insert v ty env) e
+-- UIdent or Scalar
+
+-- if alts is empty then "no alternatives match"
+-- if no default case and result ty isn't empty then "missing alternatives"
+
+evalAlts :: TyEnv -> Ty -> Maybe Ty -> [CaseAlt] -> M Ty
+evalAlts _ ty mrt [] = case mrt of -- no default case
+  Nothing -> err100ST "no alternatives match" ty
+  Just rt -> case ty of
+    TySum _ m -> if
+      | Map.null m -> pure rt
+      | otherwise -> err10nST "'case' on sum type missing alternatives" ty $ Map.keys m
+    _ -> err100ST "'case' on scalar type with no default given" ty
+
+evalAlts env ty mrt (CaseAlt _ altp e : rest) = case altp of
+  PDefault _ v -> unifyResults $ eval (Map.insert v ty env) e
+
+  PScalar _ a -> do
+    _ <- unify ty (typeOf a)
+    rt <- unifyResults (eval env e)
+    evalAlts env ty (Just rt) rest
+
+  PEnum _ c -> case ty of
+    TySum pos m -> case Map.lookup c m of
+      Nothing -> evalAlts env ty mrt rest
+      Just mt -> case mt of
+        Nothing -> do
+          rt <- unifyResults $ eval env e
+          evalAlts env (TySum pos $ Map.delete c m) (Just rt) rest
+        Just _ -> err101ST "unexpected enum pattern (type expects sum pattern)" altp ty
+    _ -> err101ST "unexpected enum pattern with non-sum type" altp ty
+ 
   PCon _ c p -> case ty of
-    TySum _ m -> case Map.lookup c m of
-      Nothing -> pure Nothing
+    TySum pos m -> case Map.lookup c m of
+      Nothing -> evalAlts env ty mrt rest
       Just mt -> case mt of
         Just t -> do
           env' <- match p t
-          Just . (, Just c) <$> eval (env' <> env) e
-        Nothing -> err101ST "unexpected sum pattern" p ty
+          rt <- unifyResults $ eval (env' <> env) e
+          evalAlts env (TySum pos $ Map.delete c m) (Just rt) rest
+        Nothing -> err101ST "unexpected sum pattern (type expects enum pattern)" p ty
     _ -> err101ST "unexpected sum pattern with non-sum type" altp ty
-  PEnum _ c -> case ty of
-    TySum _ m -> case Map.lookup c m of
-      Nothing -> pure Nothing
-      Just mt -> case mt of
-        Nothing -> Just . (, Just c) <$> eval env e
-        Just _ -> err101ST "unexpected enum pattern" altp ty
-    _ -> err101ST "unexpected enum pattern with non-enum type" altp ty
-  PScalar _ a -> do
-    _ <- unify ty (typeOf a)
-    Just . (, Nothing) <$> eval env e
 
+  where
+    unifyResults m = do
+      rt <- m
+      case mrt of
+        Nothing -> pure rt
+        Just rt0 -> unify rt0 rt
+  
 instance Typed Scalar where
   typeOf = typeOf . scalarToVScalar
 
@@ -331,19 +358,7 @@ eval env x = traceEval x $ case x of
     va <- eval env a
     unless (isIntTy va || isTySum va) $
       err101ST "expected integral type in 'case' expression" a va
-    (alts, mcons) <- unzip . catMaybes <$> mapM (evalCaseAlt env va) (toList bs)
-    t <- case alts of
-      [] -> err100ST "no alternatives match" a
-      _ -> unifies $ NE.fromList alts
-    let noDefaultCase = List.null [ () | CaseAlt _ PDefault{} _ <- toList bs ]
-    when noDefaultCase $ case va of
-      TySum _ m -> if
-        | List.null cs -> pure ()
-        | otherwise -> err10nST "'case' on sum type missing alternatives" x cs
-        where
-          cs = Map.keys m List.\\ catMaybes mcons
-      _ -> err100ST "'case' on scalar type with no default given" x
-    pure t
+    evalAlts env va Nothing $ toList bs
 
   Do _ ss -> evalStmts env ss
 

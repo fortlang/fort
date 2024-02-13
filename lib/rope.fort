@@ -1,6 +1,6 @@
-qualifier AB = "./examples/append-buffer.fort"
-qualifier PB = "./examples/piece-buffer.fort"
-qualifier Stack = "./examples/stack.fort"
+qualifier AB = "lib/append-buffer.fort"
+qualifier PB = "lib/piece-buffer.fort"
+qualifier Stack = "lib/stack.fort"
 
 type NodeId = Int
 

@@ -1,5 +1,9 @@
 # Revision history for fort
 
+## 0.1.2.0 -- 2024-02-15
+    created fort standard library in lib
+    fixed sum alt default value bug (delete matched tags)
+
 ## 0.1.1.0 -- 2024-02-12
 
     include derivation trace in type checker errors

@@ -1,4 +1,4 @@
-qualifier Prelude = "examples/prelude.fort"
+qualifier Prelude = "lib/prelude.fort"
 
 eval-a = \i j -> 1.0 / cast ((i + j) * (i + j + 1) / 2 + i + 1) `Double`
 

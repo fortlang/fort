@@ -1,6 +1,6 @@
 ;; BAL: try all test suite with fastMath enabled
 
-qualifier Prelude = "examples/prelude.fort"
+qualifier Prelude = "lib/prelude.fort"
 
 type Body = Record
   x: Double

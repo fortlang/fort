@@ -1,4 +1,4 @@
-qualifier Prelude = "./examples/prelude.fort"
+qualifier Prelude = "lib/prelude.fort"
 
 init = \ty -> record
   next = 0

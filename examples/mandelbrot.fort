@@ -1,4 +1,4 @@
-qualifier Prelude = "examples/prelude.fort"
+qualifier Prelude = "lib/prelude.fort"
 
 putchar = extern "putchar" `Int -> Int`
 atoi = extern "atoi" `Pointer Char -> Int`

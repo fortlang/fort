@@ -1,0 +1,133 @@
+qualifier Lexer = "examples/lexer.fort"
+qualifier Ansi = "lib/ansi.fort"
+
+main = do
+  fn = arg1
+  buf = alloca `CharBuf`
+
+  case fread-contents fn buf of
+    Ok n -> do
+      st0 = init-st buf $ cast n `Int`
+      loop st0 $ \st -> case token st of
+        Ok st' -> do
+          display-tok st'
+          Continue $ next st'
+        _ -> Done ()
+    err -> panic (err, fn)
+
+display-tok = \st -> ansi $ do
+  set-font st.token
+  loop 0 $ \i -> if
+    i < token-length st -> do
+      print @(st.char-buf # (st.prev-char-index + i))
+      Continue (i + 1)
+    otherwise -> Done ()
+
+set-font = \tok -> case tok of
+  Newline -> whitespace
+  Spaces -> whitespace
+
+  Comment -> comment
+
+  StringLit -> scalar
+  CharLit -> scalar
+  Integer -> scalar
+  Float -> scalar
+  Hexidecimal -> scalar
+  Octal -> scalar
+  Binary -> scalar
+  VFalse -> scalar
+  VTrue -> scalar
+
+  LIdent -> lident
+  UIdent -> uident
+  InfixOp -> infix-op
+  PrefixOp -> prefix-op
+
+  TArray -> reserved-ty
+  TBool -> reserved-ty
+  TC -> reserved-ty
+  TF -> reserved-ty
+  TI -> reserved-ty
+  TPointer -> reserved-ty
+  TRecord -> reserved-ty
+  TString -> reserved-ty
+  TSum -> reserved-ty
+  TU -> reserved-ty
+
+  TOpaque -> reserved
+  VArray -> reserved
+  Case -> reserved
+  Do -> reserved
+  Export -> reserved
+  Extern -> reserved
+  If -> reserved
+  Infix -> reserved
+  Infixl -> reserved
+  Infixr -> reserved
+  Of -> reserved
+  Operator -> reserved
+  Qualifier -> reserved
+  VRecord -> reserved
+  TailRec -> reserved
+  Type -> reserved
+  Where -> reserved
+  With -> reserved
+
+  Tilde -> reserved-op
+  Arrow -> reserved-op
+  Equal -> reserved-op
+  Backtick -> reserved-op
+  Backslash -> reserved-op
+  Colon -> reserved-op
+  Dot -> reserved-op
+  FatArrow -> reserved-op
+
+  LBrace -> punctuation
+  RBrace -> punctuation
+  LParen -> punctuation
+  RParen -> punctuation
+  LBracket -> punctuation
+  RBracket -> punctuation
+  Comma -> punctuation
+  Semicolon -> punctuation
+  Cast -> reserved
+  _ -> do
+    color Red
+    print "<ctrl>"
+ where
+    ~whitespace = color Default
+    ~comment = do
+      color Magenta
+      style Italic
+
+    ~scalar = do
+      color Green
+      style Italic
+    ~lident = do
+      style Bold
+      color White
+
+    ~uident = do
+      style Bold
+      color Yellow
+
+    ~infix-op = do
+      style Bold
+      color Blue
+
+    ~prefix-op = do
+      style Bold
+      color Blue
+
+    ~reserved-ty = do
+      style Dim
+      color Yellow
+
+    ~reserved = do
+      color Magenta
+
+    ~reserved-op = color Cyan
+    ~punctuation = do
+      style Bold
+      color Cyan

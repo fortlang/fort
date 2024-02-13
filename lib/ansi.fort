@@ -1,0 +1,95 @@
+qualifier Prelude = "lib/prelude.fort"
+
+color = \c -> esc $ case c of
+    Black -> "[30m"
+    Red -> "[31m"
+    Green -> "[32m"
+    Yellow -> "[33m"
+    Blue -> "[34m"
+    Magenta -> "[35m"
+    Cyan -> "[36m"
+    White -> "[37m"
+    Default -> "[39m"
+
+background = \x -> esc $ case x of
+    Black -> "[40m"
+    Red -> "[41m"
+    Green -> "[42m"
+    Yellow -> "[43m"
+    Blue -> "[44m"
+    Magenta -> "[45m"
+    Cyan -> "[46m"
+    White -> "[47m"
+    Default -> "[49m"
+
+unstyle = \x -> esc $ case x of
+    Bold -> "[22m"
+    Dim -> "[22m"
+    Italic -> "[23m"
+    Underline -> "[24m"
+    Blinking -> "[25m"
+    Inverse -> "[27m"
+    Hidden -> "[28m"
+    StrikeThrough -> "[29m"
+
+style = \x -> esc $ case x of
+    None -> "[0m"
+    Bold -> "[1m"
+    Dim -> "[2m"
+    Italic -> "[3m"
+    Underline -> "[4m"
+    Blinking -> "[5m"
+    Inverse -> "[7m"
+    Hidden -> "[8m"
+    StrikeThrough -> "[9m"
+
+ansi = bracket () $ do
+  color Default
+  background Default
+  style None
+
+set-cursor-pos = \col row -> do
+  esc "["
+  print $ row + 1 ;; terminal expects 1 based rows
+  print ";"
+  print $ col + 1 ;; terminal expects 1 based cols
+  print "H"
+
+esc = \s -> do
+  print "\x1B"
+  print s
+
+~clear-eol = esc "[0K"
+
+~clear = esc "[2J"
+
+hidden-cursor = bracket hide-cursor show-cursor
+
+~hide-cursor = esc "[?25l"
+~show-cursor = esc "[?25h"
+
+alt-buf-mode = bracket set-alt-buf unset-alt-buf
+
+~set-alt-buf = esc "[?1049h"
+~unset-alt-buf = esc "[?1049l"
+
+test = do
+  println get-terminal-size
+
+  ansi $ do
+    print "this is "
+    color Yellow
+    style Bold
+    println "YELLOW"
+
+  ansi $ do
+    style StrikeThrough
+    color Green
+    print "hello, "
+    style Underline
+    color Blue
+    background Red
+    print "world"
+    background Default
+    println ""
+

@@ -1,0 +1,145 @@
+qualifier Prelude = "lib/prelude.fort"
+
+type RE = St -> Ok St
+
+type Ok = \a => Sum
+  Ok: a
+  Err
+
+type MChar = Sum
+  EOF
+  Ch: Char
+
+type St = Record
+  char-buf: Pointer CharBuf
+  buf-len: Int
+  prev-char-index: Int
+  char-index: Int
+  next-char: MChar
+  token: Token
+
+type CharBuf = Array 8192 Char
+
+tokenize : `RE -> Pointer CharBuf -> Int -> Ok St` = \f buf n -> do
+  when (n > countof buf) $ panic "buffer too small for tokenize"
+  f $ init-st (cast buf `Pointer CharBuf`) n
+
+init-st : `Pointer CharBuf -> Int -> St` = \buf n -> do
+  st = record
+    char-buf = buf
+    buf-len = n
+    char-index = 0
+    prev-char-index = 0
+    next-char = EOF
+    token = Err
+  advance st
+
+advance : `St -> St` = \st -> if
+  st.char-index == st.buf-len -> st with
+    char-index = st.char-index + 1
+    next-char = EOF
+  st.char-index > st.buf-len -> st
+  otherwise -> st with
+    char-index = st.char-index + 1
+    next-char = Ch @(st.char-buf # st.char-index)
+  
+nl : `Char` = '\n'
+
+spaces : `RE` = some (char ' ') >>> accept Spaces
+
+string-lit : `RE` =
+  char double-quote >>> many (string-char ||| esc-char) >>> char double-quote >>> accept StringLit
+    where
+    double-quote : `Char` = '"'
+    string-char : `RE` = satisfy $ \c -> is-visible c && c != backslash && c != double-quote
+
+char-lit : `RE` = char single-quote >>> (char-char ||| esc-char) >>> char single-quote >>> accept CharLit
+  where
+    char-char : `RE` = satisfy $ \c -> is-visible c && c != backslash && c != single-quote
+
+esc-char : `RE` = char backslash >>> (esc-hex ||| visible)
+  where
+    esc-hex : `RE` = char 'x' >>> hex-digit >>> hex-digit
+
+is-visible : `Char -> Bool` = \c -> c >= ' ' && c <= '~'
+visible : `RE` = between ' ' '~'
+
+int : `RE` = optional (char '-') >>> nat
+nat : `RE` = some digit
+
+fractional = char '.' >>> nat >>> optional (char 'e' >>> int) >>> accept Float
+
+decimal : `RE` = int >>> (fractional ||| accept Integer)
+
+hexidecimal : `RE` = char '0' >>> char 'x' >>> some hex-digit >>> accept Hexidecimal
+octal : `RE` = char '0' >>> char 'o' >>> some oct-digit >>> accept Octal
+binary : `RE` = char '0' >>> char 'b' >>> some bin-digit >>> accept Binary
+
+hex-digit : `RE` = digit ||| between 'a' 'f'
+oct-digit : `RE` = between '0' '7'
+bin-digit : `RE` = char '0' ||| char '1'
+
+error : `RE` = \st -> Err
+
+token-length = \st -> st.char-index - st.prev-char-index - 1
+
+backslash : `Char` = '\\'
+
+lower : `RE` = between 'a' 'z' ||| char '_'
+upper : `RE` = between 'A' 'Z'
+
+single-quote : `Char` = '\''
+
+accept : `Token -> RE` = \tok st -> do
+  ;; print "accepting "
+  ;; print tok
+  ;; print " starting at "
+  ;; print st.prev-char-index
+  ;; print " with length "
+  ;; println $ token-length st
+
+  ;; st' = push tok st.tokens
+  st' = st with
+    token = tok
+    ;; prev-char-index = st.char-index - 1
+  Ok st'
+
+next = \st -> st with prev-char-index = st.char-index - 1
+
+optional : `RE -> RE` = \f -> f ||| epsilon
+
+epsilon : `RE` = \st -> Ok st
+
+eof : `RE` = satisfy-mchar (equal EOF)
+
+satisfy-mchar : `(MChar -> Bool) -> RE` = \p st -> if
+  p st.next-char -> Ok $ advance st
+  otherwise -> Err
+
+any-char = satisfy $ \_ -> True
+
+satisfy : `(Char -> Bool) -> RE` = \p -> satisfy-mchar $ \mc -> case mc of
+  Ch c -> p c
+  EOF -> False
+
+some : `RE -> RE` = \f -> f >>> many f
+
+many : `RE -> RE` = \f -> \st0 -> do
+  loop st0 $ \st -> case f st of
+    Err -> Done (Ok st)
+    Ok st' -> Continue st'
+
+digit : `RE` = between '0' '9'
+between : `Char -> Char -> RE` =  \a b -> satisfy (\c -> c >= a && c <= b)
+char : `Char -> RE` = \c -> satisfy (equal c)
+
+operator ||| = or-matches infixr 2.0
+or-matches : `RE -> RE -> RE` = \f g -> \st -> case f st of
+  Err -> g st
+  r -> r
+
+operator >>> = followed-by infixr 4.0
+followed-by : `RE -> RE -> RE` = \f g -> \st -> case f st of
+  Err -> Err
+  Ok st' -> g st'
+

@@ -1,4 +1,4 @@
-qualifier Prelude = "./examples/prelude.fort"
+qualifier Prelude = "lib/prelude.fort"
 
 type Piece = Record
     offset: Int

@@ -1,0 +1,39 @@
+qualifier Prelude = "lib/prelude.fort"
+
+fp-get-char = \buf fp -> do
+  n = fread buf 1 fp
+  if
+    n < 1 -> Err
+    otherwise -> Ok @buf
+
+print-page = \buf fp sz -> do
+  loop (0, 0) $ \(i, j) -> if
+    j >= sz.height - 1 -> Done ()
+    i >= sz.width -> do
+      print '\n'
+      Continue (0, j + 1)
+    otherwise -> case fp-get-char buf fp of
+      Err -> Done ()
+      Ok c -> do
+        print c
+        case c of
+	  '\n' -> Continue (0, j + 1)
+	  _ -> Continue (i + 1, j)
+
+main = do
+  when (argc < 2) $ panic "expected a filename argument"
+  fn = @(argv # 1)
+
+  case fopen fn "r" of
+    Err -> panic "unable to open file"
+    Ok fp -> do
+      case get-terminal-size of
+        Err -> panic "unable to get terminal size"
+	Ok sz -> do
+          buf = alloca `Char`
+
+          loop ' ' $ \c -> case c of
+            'q' -> from-ok () $ fclose fp
+            _ -> do
+              print-page buf fp sz
+              Continue $ raw-mode getchar

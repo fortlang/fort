@@ -5,12 +5,12 @@ module Fort.Prims
   , assertWithMessage
   , evalBlockM
   , evalIf
-  , evalSwitch
   , exitPrim
   , fun
   , primCallTys
   , primCalls
   , store
+  , eqVal
   )
 
 where
@@ -436,7 +436,9 @@ evalSumAlts c0 m f | isValEnum c0 = do
   let xs = sortByFst $ Map.toList m
   blks <- mapM (evalBlockM . f) xs
   cons <- mapM (evalCon . fst) xs
-  evalSwitch c0 [ AltScalar c blk | (c, blk) <- zip cons blks ]
+  case zip cons blks of
+    [] -> unreachable100 "empty sum type" c0
+    (_, dflt) : alts -> switch c0 alts dflt
 evalSumAlts c0 _ _ = unreachable001 "expected enum val" (typeOf c0)
 
 countofTC :: Ty -> Err Ty
@@ -706,33 +708,3 @@ fun2 resTy nm = pairFun $ \a b -> do
   rt <- resTy (typeOf a) b
   let pos = positionOf a
   fun rt (AString pos nm) $ VTuple pos $ fromList2 [a, b]
-
-switchValOf :: Val -> M Val
-switchValOf x = case x of
-  VSum _ c _ | isSwitchVal c -> pure c
-  VScalar{} | isSwitchVal x -> pure x
-  _ -> err101 "unexpected switch value in 'case' expression" x noTCHint
-
-evalSwitch :: Val -> [Alt] -> M Val
-evalSwitch val xs = do
-  tg <- switchValOf val
-  if
-    | null xs -> err101 "empty alternatives" val noTCHint
-    | (alts, AltDefault dflt : _) <- break isAltDefault xs -> switch tg alts dflt
-    | AltScalar sclr blk <- last xs -> do
-        blk' <- evalBlockM (eqVal tg (VScalar pos sclr) >>= assertWithMessage "unmatched 'case' alternative")
-        switch tg (init xs) blk{ blockDecls = blockDecls blk' ++ blockDecls blk }
-    | otherwise -> unreachable001 "unexpected alternatives" val
-  where
-    pos = positionOf val
-    switch :: Val -> [Alt] -> Block -> M Val
-    switch tg alts dflt = do
-      (r, rdflt : ralts) <- joinVals $ blockResult dflt : [ blockResult b | AltScalar _ b <- alts ]
-      pushDecl $ VLet r $ VSwitch tg (dflt{ blockResult = rdflt }) [ AltScalar a b{ blockResult = rb } | (rb, AltScalar a b) <- zip ralts alts ]
-      pure r
-
-    isAltDefault :: Alt -> Bool
-    isAltDefault x = case x of
-      AltDefault{} -> True
-      _ -> False
-

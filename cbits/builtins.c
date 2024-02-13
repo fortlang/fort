@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 #include <assert.h>
 #include <time.h>
+#include <errno.h>
 #include "builtins.h"
 
 struct termios orig_term = {};
@@ -13,6 +14,10 @@ int test_extern_int = 42;
 
 int FORT_argc;
 char **FORT_argv;
+
+int getErrno()
+{ return errno;
+}
 
 void FORT_print_Bool(int x)
 {

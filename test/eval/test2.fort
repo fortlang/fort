@@ -25,7 +25,7 @@ main = do
     False -> Left "hello"
     False -> Left "goodbye"
     True -> Right 'c'
-  print z
+  println z
   0
 
 test = True
