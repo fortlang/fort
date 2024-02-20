@@ -94,7 +94,7 @@ fort opts = do
         msops <- fixInfixOpsModules msqual
         when (showPrecedence opts) $ mapM_ (pp "(precedence)") msops
         when doDeps $ do
-          msdeps <- dependenciesModules mainNm fns msops
+          (bldds, msdeps) <- dependenciesModules mainNm fns msops
           when (showDependencies opts) $ mapM_ (pp "(deps)") msdeps
           when doSimplify $ do
             unless (noTypeChecker opts) $ typeCheckModules msdeps
@@ -110,7 +110,9 @@ fort opts = do
                 when doGen $ do
                   mapM_ (writeFnDoc llvmFn) $ fmap (fmap snd) msllvm
                   when doBuild $ do
-                    mapM_ buildFn $ fmap (fmap fst) msllvm
+                    unless (noTypeChecker opts) $ typeCheckDecls bldds
+                    bldCmd <- simplifyBuildDecls (runTimeChecks opts) bldds
+                    mapM_ (buildFn bldCmd) $ fmap (fmap fst) msllvm
                     when (doRun opts) $ mapM_ runExeFn $ fmap (fmap fst) msllvm
     pure 0
 
@@ -160,23 +162,24 @@ runExeFn (fn, bt) = do
       putStrLn ""
     _ -> putStrLn "no .exe (no main found)"
 
-buildFn :: (FilePath, BuildType) -> IO ()
-buildFn (fn, bt) = case bt of
+buildFn :: [Text] -> (FilePath, BuildType) -> IO ()
+buildFn bldAppend (fn, bt) = case bt of
   Exe -> do
     putStrLn $ exeFn fn ++ ": (exe)"
-    let cmd = unwords ["clang -O3 -o", exeFn fn, llvmFn fn, "cbits/builtins.c"]
+    let cmd = unwords $ ["clang -O3 -o", exeFn fn, llvmFn fn] ++ fmap Text.unpack bldAppend
     putStrLn cmd
     callCommand cmd
     putStrLn ""
   Obj -> do
     putStrLn $ llvmFn fn ++ ": (obj)"
-    let cmd = unwords ["clang -O3 -c -o", objFn fn, llvmFn fn]
+    let cmd = unwords $ ["clang -O3 -c -o", objFn fn, llvmFn fn]
     putStrLn cmd
     callCommand cmd
     putStrLn ""
   NoCode -> do
     putStrLn $ fn ++ ": (no code)"
     putStrLn "no .exe/.o (no main or exported functions found)"
+
 
 writeFnDoc :: (FilePath -> FilePath) -> (FilePath, Doc ann) -> IO ()
 writeFnDoc f (fn, d) = do

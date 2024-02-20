@@ -21,6 +21,9 @@ import qualified Fort.Type as Type
 typeCheckModules :: [(FilePath, Map AString Exported)] -> IO ()
 typeCheckModules xs = sequence_ $ concat [ [ evalExported a | a <- Map.elems m ] | (_, m) <- xs ]
 
+typeCheckDecls :: [Decl] -> IO ()
+typeCheckDecls ds = void $ evalSt ds $ evalDecls ds
+
 evalType_ :: Type -> M Ty
 evalType_ = lift . lift . Type.evalType_
 

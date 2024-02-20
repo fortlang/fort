@@ -117,11 +117,11 @@ import qualified GHC.Exts as Happy_GHC_Exts
 import Control.Applicative(Applicative(..))
 import Control.Monad (ap)
 
--- parser produced by Happy Version 1.20.1.1
+-- parser produced by Happy Version 1.19.9
 
 data HappyAbsSyn 
 	= HappyTerminal (Token)
-	| HappyErrorToken Prelude.Int
+	| HappyErrorToken Int
 	| HappyAbsSyn98 ((Fort.Abs.BNFC'Position, Fort.Abs.ADoubleTok))
 	| HappyAbsSyn99 ((Fort.Abs.BNFC'Position, Fort.Abs.AStringTok))
 	| HappyAbsSyn100 ((Fort.Abs.BNFC'Position, Fort.Abs.BinTok))
@@ -950,14 +950,14 @@ happyExpList = HappyA# "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00
 happyExpListPerState st =
     token_strs_expected
   where token_strs = ["error","%dummy","%start_pListBinding_internal","%start_pListExp_internal","%start_pListFieldDecl_internal","%start_pListLIdent_internal","%start_pListLayoutElemCaseAlt_internal","%start_pListLayoutElemExp_internal","%start_pListLayoutElemExpDecl_internal","%start_pListLayoutElemFieldDecl_internal","%start_pListLayoutElemIfBranch_internal","%start_pListLayoutElemStmt_internal","%start_pListLayoutElemTField_internal","%start_pListLayoutElemTSum_internal","%start_pListLayoutElemTailRecDecl_internal","%start_pListSize_internal","%start_pListTupleElemExp_internal","%start_pListTupleElemPat_internal","%start_pListTupleElemType_internal","%start_pListDecl_internal","%start_pModule_internal","%start_pTupleElemExp_internal","%start_pTupleElemPat_internal","%start_pTupleElemType_internal","%start_pLayoutElemTField_internal","%start_pLayoutElemTSum_internal","%start_pLayoutElemExp_internal","%start_pLayoutElemStmt_internal","%start_pLayoutElemIfBranch_internal","%start_pLayoutElemCaseAlt_internal","%start_pLayoutElemFieldDecl_internal","%start_pLayoutElemTailRecDecl_internal","%start_pLayoutElemExpDecl_internal","%start_pADouble_internal","%start_pADouble0_internal","%start_pAString_internal","%start_pAString0_internal","%start_pAltPat_internal","%start_pAltPat0_internal","%start_pBinding_internal","%start_pBinding0_internal","%start_pCaseAlt_internal","%start_pCaseAlt0_internal","%start_pDecl_internal","%start_pDecl0_internal","%start_pExp_internal","%start_pExp0_internal","%start_pExp1_internal","%start_pExp2_internal","%start_pExp3_internal","%start_pExp4_internal","%start_pExp5_internal","%start_pExp6_internal","%start_pExp7_internal","%start_pExpDecl_internal","%start_pExpDecl0_internal","%start_pFieldDecl_internal","%start_pFieldDecl0_internal","%start_pFixity_internal","%start_pFixity0_internal","%start_pIfBranch_internal","%start_pIfBranch0_internal","%start_pInfixInfo_internal","%start_pInfixInfo0_internal","%start_pInfixOp_internal","%start_pInfixOp0_internal","%start_pLIdent_internal","%start_pLIdent0_internal","%start_pPat_internal","%start_pPat0_internal","%start_pPrefixOp_internal","%start_pPrefixOp0_internal","%start_pQualLIdent_internal","%start_pQualLIdent0_internal","%start_pScalar_internal","%start_pScalar0_internal","%start_pSize_internal","%start_pSize0_internal","%start_pStmt_internal","%start_pStmt0_internal","%start_pTField_internal","%start_pTField0_internal","%start_pTSum_internal","%start_pTSum0_internal","%start_pTailRecDecl_internal","%start_pTailRecDecl0_internal","%start_pTailRecDecls_internal","%start_pTailRecDecls0_internal","%start_pType_internal","%start_pType0_internal","%start_pType1_internal","%start_pType2_internal","%start_pType3_internal","%start_pUIdent_internal","%start_pUIdent0_internal","%start_pUInt_internal","%start_pUInt0_internal","ADoubleTok","AStringTok","BinTok","CharTok","DecTok","HexTok","InfixOpTok","IntTok","LIdentTok","OctTok","PrefixOpTok","UIdentTok","ListBinding","ListExp","ListFieldDecl","ListLIdent","ListLayoutElemCaseAlt","ListLayoutElemExp","ListLayoutElemExpDecl","ListLayoutElemFieldDecl","ListLayoutElemIfBranch","ListLayoutElemStmt","ListLayoutElemTField","ListLayoutElemTSum","ListLayoutElemTailRecDecl","ListSize","ListTupleElemExp","ListTupleElemPat","ListTupleElemType","ListDecl","Module","TupleElemExp","TupleElemPat","TupleElemType","LayoutElemTField","LayoutElemTSum","LayoutElemExp","LayoutElemStmt","LayoutElemIfBranch","LayoutElemCaseAlt","LayoutElemFieldDecl","LayoutElemTailRecDecl","LayoutElemExpDecl","ADouble","ADouble0","AString","AString0","AltPat","AltPat0","Binding","Binding0","CaseAlt","CaseAlt0","Decl","Decl0","Exp","Exp0","Exp1","Exp2","Exp3","Exp4","Exp5","Exp6","Exp7","ExpDecl","ExpDecl0","FieldDecl","FieldDecl0","Fixity","Fixity0","IfBranch","IfBranch0","InfixInfo","InfixInfo0","InfixOp","InfixOp0","LIdent","LIdent0","Pat","Pat0","PrefixOp","PrefixOp0","QualLIdent","QualLIdent0","Scalar","Scalar0","Size","Size0","Stmt","Stmt0","TField","TField0","TSum","TSum0","TailRecDecl","TailRecDecl0","TailRecDecls","TailRecDecls0","Type","Type0","Type1","Type2","Type3","UIdent","UIdent0","UInt","UInt0","'('","'()'","')'","','","'->'","'.'","':'","';'","'='","'=>'","'Array'","'Bool'","'C'","'F'","'False'","'I'","'Opaque'","'Pointer'","'Record'","'String'","'Sum'","'True'","'U'","'['","'\\\\'","']'","'`'","'array'","'case'","'do'","'export'","'extern'","'if'","'infix'","'infixl'","'infixr'","'of'","'operator'","'qualifier'","'record'","'tailrec'","'type'","'where'","'with'","'{'","'}'","'~'","L_ADoubleTok","L_AStringTok","L_BinTok","L_CharTok","L_DecTok","L_HexTok","L_InfixOpTok","L_IntTok","L_LIdentTok","L_OctTok","L_PrefixOpTok","L_UIdentTok","%eof"]
-        bit_start = st Prelude.* 264
-        bit_end = (st Prelude.+ 1) Prelude.* 264
+        bit_start = st * 264
+        bit_end = (st + 1) * 264
         read_bit = readArrayBit happyExpList
-        bits = Prelude.map read_bit [bit_start..bit_end Prelude.- 1]
-        bits_indexed = Prelude.zip bits [0..263]
-        token_strs_expected = Prelude.concatMap f bits_indexed
-        f (Prelude.False, _) = []
-        f (Prelude.True, nr) = [token_strs Prelude.!! nr]
+        bits = map read_bit [bit_start..bit_end - 1]
+        bits_indexed = zip bits [0..263]
+        token_strs_expected = concatMap f bits_indexed
+        f (False, _) = []
+        f (True, nr) = [token_strs !! nr]
 
 action_0 (205#) = happyShift action_223
 action_0 (206#) = happyShift action_224
@@ -8470,7 +8470,7 @@ happyReturn = (return)
 happyThen1 m k tks = ((>>=)) m (\a -> k a tks)
 happyReturn1 :: () => a -> b -> Err a
 happyReturn1 = \a tks -> (return) a
-happyError' :: () => ([(Token)], [Prelude.String]) -> Err a
+happyError' :: () => ([(Token)], [String]) -> Err a
 happyError' = (\(tokens, _) -> happyError tokens)
 pListBinding_internal tks = happySomeParser where
  happySomeParser = happyThen (happyParse action_0 tks) (\x -> case x of {HappyAbsSyn110 z -> happyReturn z; _other -> notHappyAtAll })
@@ -9060,7 +9060,1052 @@ pUInt = fmap snd . pUInt_internal
 pUInt0 :: [Token] -> Err Fort.Abs.UInt
 pUInt0 = fmap snd . pUInt0_internal
 {-# LINE 1 "templates/GenericTemplate.hs" #-}
--- $Id: GenericTemplate.hs,v 1.26 2005/01/14 14:47:22 simonmar Exp $
+{-# LINE 1 "templates/GenericTemplate.hs" #-}
+{-# LINE 1 "<built-in>" #-}
+{-# LINE 16 "<built-in>" #-}
+{-# LINE 1 "/usr/local/Cellar/ghc/8.4.2/lib/ghc-8.4.2/include/ghcversion.h" #-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+{-# LINE 17 "<built-in>" #-}
+{-# LINE 1 "/var/folders/pr/x08hctr51hjd64wvg0lsgg940000gn/T/ghc29106_0/ghc_2.h" #-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+{-# LINE 18 "<built-in>" #-}
+{-# LINE 1 "templates/GenericTemplate.hs" #-}
+-- Id: GenericTemplate.hs,v 1.26 2005/01/14 14:47:22 simonmar Exp 
 
 
 
@@ -9076,32 +10121,16 @@ pUInt0 = fmap snd . pUInt0_internal
 
 -- Do not remove this comment. Required to fix CPP parsing when using GCC and a clang-compiled alex.
 #if __GLASGOW_HASKELL__ > 706
-#define LT(n,m) ((Happy_GHC_Exts.tagToEnum# (n Happy_GHC_Exts.<# m)) :: Prelude.Bool)
-#define GTE(n,m) ((Happy_GHC_Exts.tagToEnum# (n Happy_GHC_Exts.>=# m)) :: Prelude.Bool)
-#define EQ(n,m) ((Happy_GHC_Exts.tagToEnum# (n Happy_GHC_Exts.==# m)) :: Prelude.Bool)
+#define LT(n,m) ((Happy_GHC_Exts.tagToEnum# (n Happy_GHC_Exts.<# m)) :: Bool)
+#define GTE(n,m) ((Happy_GHC_Exts.tagToEnum# (n Happy_GHC_Exts.>=# m)) :: Bool)
+#define EQ(n,m) ((Happy_GHC_Exts.tagToEnum# (n Happy_GHC_Exts.==# m)) :: Bool)
 #else
 #define LT(n,m) (n Happy_GHC_Exts.<# m)
 #define GTE(n,m) (n Happy_GHC_Exts.>=# m)
 #define EQ(n,m) (n Happy_GHC_Exts.==# m)
 #endif
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+{-# LINE 43 "templates/GenericTemplate.hs" #-}
 
 data Happy_IntList = HappyCons Happy_GHC_Exts.Int# Happy_IntList
 
@@ -9112,28 +10141,10 @@ data Happy_IntList = HappyCons Happy_GHC_Exts.Int# Happy_IntList
 
 
 
+{-# LINE 65 "templates/GenericTemplate.hs" #-}
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+{-# LINE 75 "templates/GenericTemplate.hs" #-}
 
 
 
@@ -9155,7 +10166,7 @@ happyParse start_state = happyNewToken start_state notHappyAtAll notHappyAtAll
 -----------------------------------------------------------------------------
 -- Accepting the parse
 
--- If the current token is ERROR_TOK, it means we've just accepted a partial
+-- If the current token is 1#, it means we've just accepted a partial
 -- parse (a %partial parser).  We must ignore the saved token on the top of
 -- the stack in this case.
 happyAccept 1# tk st sts (_ `HappyStk` ans `HappyStk` _) =
@@ -9167,35 +10178,7 @@ happyAccept j tk st sts (HappyStk ans _) =
 -- Arrays only: do the next action
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+{-# LINE 137 "templates/GenericTemplate.hs" #-}
 
 
 indexShortOffAddr (HappyA# arr) off =
@@ -9214,7 +10197,7 @@ happyLt x y = LT(x,y)
 
 
 readArrayBit arr bit =
-    Bits.testBit (Happy_GHC_Exts.I# (indexShortOffAddr arr ((unbox_int bit) `Happy_GHC_Exts.iShiftRA#` 4#))) (bit `Prelude.mod` 16)
+    Bits.testBit (Happy_GHC_Exts.I# (indexShortOffAddr arr ((unbox_int bit) `Happy_GHC_Exts.iShiftRA#` 4#))) (bit `mod` 16)
   where unbox_int (Happy_GHC_Exts.I# x) = x
 
 
@@ -9330,7 +10313,7 @@ happyGoto action j tk st = action j j tk (HappyState action)
 
 
 -----------------------------------------------------------------------------
--- Error recovery (ERROR_TOK is the error token)
+-- Error recovery (1# is the error token)
 
 -- parse error if we are in recovery and we fail again
 happyFail explist 1# tk old_st _ stk@(x `HappyStk` _) =
@@ -9343,22 +10326,22 @@ happyFail explist 1# tk old_st _ stk@(x `HappyStk` _) =
     for now --SDM
 
 -- discard a state
-happyFail  ERROR_TOK tk old_st CONS(HAPPYSTATE(action),sts) 
+happyFail  1# tk old_st (((HappyState (action))):(sts)) 
                                                 (saved_tok `HappyStk` _ `HappyStk` stk) =
 --      trace ("discarding state, depth " ++ show (length stk))  $
-        DO_ACTION(action,ERROR_TOK,tk,sts,(saved_tok`HappyStk`stk))
+        action 1# 1# tk (HappyState (action)) sts ((saved_tok`HappyStk`stk))
 -}
 
 -- Enter error recovery: generate an error token,
 --                       save the old token and carry on.
 happyFail explist i tk (HappyState (action)) sts stk =
 --      trace "entering error recovery" $
-        action 1# 1# tk (HappyState (action)) sts ((HappyErrorToken (Happy_GHC_Exts.I# (i))) `HappyStk` stk)
+        action 1# 1# tk (HappyState (action)) sts ( (HappyErrorToken (Happy_GHC_Exts.I# (i))) `HappyStk` stk)
 
 -- Internal happy errors:
 
 notHappyAtAll :: a
-notHappyAtAll = Prelude.error "Internal Happy error\n"
+notHappyAtAll = error "Internal Happy error\n"
 
 -----------------------------------------------------------------------------
 -- Hack to get the typechecker to accept our action functions
@@ -9376,7 +10359,7 @@ happyTcHack x y = y
 --      happySeq = happyDontSeq
 
 happyDoSeq, happyDontSeq :: a -> b -> b
-happyDoSeq   a b = a `Prelude.seq` b
+happyDoSeq   a b = a `seq` b
 happyDontSeq a b = b
 
 -----------------------------------------------------------------------------
@@ -9403,3 +10386,4 @@ happyDontSeq a b = b
 {-# NOINLINE happyFail #-}
 
 -- end of Happy Template.
+

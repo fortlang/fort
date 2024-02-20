@@ -1,4 +1,5 @@
 # The Fort Programming Language
+* *Declarative style, imperative speed* *
 
 Fort is a data-oriented general-purpose programming language with a functional style.  The goal is to conveniently build small and fast programs while eliminating the possibility of out-of-memory and stack-overflow errors.
 

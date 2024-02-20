@@ -1,5 +1,6 @@
 module Fort.Simplify
 ( simplifyModules
+, simplifyBuildDecls
 , RegisterId(..)
 , Val(..)
 , M
@@ -70,6 +71,13 @@ mainArgOf xs = do
             void $ store ve a
             pure $ Just a
           _ -> err100ST "expected main argument to have pointer type" e
+
+simplifyBuildDecls :: Bool -> [Decl] -> IO [Text]
+simplifyBuildDecls ssb ds = case ds of
+  [] -> pure ["cbits/builtins.c"]
+  _ -> evalSt ssb ds $ do
+    void $ evalExpDecls (initEnv ssb) [ a | ExpDecl _ a <- ds ]
+    gets buildCmd
 
 simplifyFunc :: Bool -> Exported -> IO Func
 simplifyFunc ssb x = case x of

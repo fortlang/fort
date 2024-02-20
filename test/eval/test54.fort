@@ -1,0 +1,10 @@
+foo = \x -> y
+  where
+    y = println x
+
+main = do
+  foo 1
+
+println = \x -> do
+  Prim.print x
+  Prim.print '\n'

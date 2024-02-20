@@ -23,7 +23,6 @@ Binding nonterminal
 TailRecDecls ::= layout "tailrec" TailRecDecl
 
 TailRecDecl ::= LIdent "=" "\\" LIdent "->" .Typed ;; BAL: can have a type on the LIdents...
-;; Where
 
 Exp nonterminal
   Where ::= .Lam layout "where" ExpDecl

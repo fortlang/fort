@@ -25,7 +25,7 @@ token =
   char-lit |||
   punctuation |||
   user-op |||
-  (any-char >>> accept Err)
+  (any-char >>> rest-of-line >>> accept Err)
 
 ;; BAL: non-visible (error token)
 
@@ -58,7 +58,9 @@ op-char : `RE` =
   char '`' |||
   char '~'
 
-comment : `RE` = char ';' >>> char ';' >>> many (satisfy (not-equal nl)) >>> accept Comment
+comment : `RE` = char ';' >>> char ';' >>> rest-of-line >>> accept Comment
+
+rest-of-line = many (satisfy (not-equal nl))
 
 number : `RE` = hexidecimal ||| octal ||| binary ||| decimal
 

@@ -29,6 +29,7 @@ module Fort.Errors
 , unreachable110
 , unreachable001
 , unreachable00n
+, unreachablen00
 , unreachable101
 , unreachablen01
 , getLineAt
@@ -105,6 +106,9 @@ unreachable101 msg b d = throwUE msg [ (pretty b, positionOf b) ] [] ["unreachab
 
 unreachable100 :: (MonadIO m, Pretty b, Positioned b) => Doc () -> b -> m a
 unreachable100 msg b = throwUE msg [ (pretty b, positionOf b) ] [] ["unreachable"]
+
+unreachablen00 :: (MonadIO m, Pretty b, Positioned b) => Doc () -> [b] -> m a
+unreachablen00 msg bs = throwUE msg [ (pretty b, positionOf b) | b <- bs ] [] ["unreachable"]
 
 unreachable110 :: (MonadIO m, Pretty b, Positioned b, Pretty c, Positioned c) => Doc () -> b -> c -> m a
 unreachable110 msg b c = throwUE msg [ (pretty b, positionOf b) ] [(pretty c, positionOf c)] ["unreachable"]

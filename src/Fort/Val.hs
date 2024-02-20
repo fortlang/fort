@@ -221,6 +221,7 @@ data St = St
   , calls :: Map AString (Val -> M Val)
   , nextTailCallId :: Integer
   , isSlowSafeBuild :: Bool
+  , buildCmd :: [Text]
   }
 
 initSt :: Bool -> St
@@ -233,6 +234,7 @@ initSt b = St
   , calls = mempty
   , nextTailCallId = 0
   , isSlowSafeBuild = b
+  , buildCmd = mempty
   }
 
 data Val

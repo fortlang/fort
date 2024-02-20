@@ -22,23 +22,38 @@ instance Pretty Exported where
     Exported q t ds -> "exported" <+> pretty q <+> ":" <+> pretty t <+> "=" <+> vlist "do" (fmap pretty ds)
 
 -- if we don't find a binding, we assume it's in a where clause and will be checked for in a later pass
-dependenciesModules :: MonadIO m => Text -> [FilePath] -> [(FilePath, Module)] -> m [(FilePath, Map AString Exported)]
+dependenciesModules :: MonadIO m => Text -> [FilePath] -> [(FilePath, Module)] -> m ([Decl], [(FilePath, Map AString Exported)])
 dependenciesModules mainNm fns ms = do
-  sequence [ (fn, ) <$> reaches fn ds | (fn, Module _ ds) <- ms, fn `List.elem` fns ]
+  bld <- reachableDecls gr (Set.fromList $ catMaybes $ fmap toBuildName allDecls)
+  (bld,) <$> sequence [ (fn, ) <$> dependenciesModule mainNm gr fn ds | (fn, Module _ ds) <- ms, fn `List.elem` fns ]
   where
-    reaches fn ds = do
-      exs0 <- mainReaches fn ds
-      bs <- exportedFuncs ds
-      exs1 <- sequence [ (n, ) . Exported v t <$> reachableDecls gr (Set.fromList (nameOf v : typeNames t)) | (n, (v, t)) <- bs ]
-      pure $ Map.fromList (exs0 ++ exs1)
+    allDecls = concat [ ds | (_, Module _ ds) <- ms ]
+    gr = depGraph allDecls
 
-    gr = modulesDepGraph $ fmap snd ms
+toBuildName :: Decl -> Maybe Name
+toBuildName (ExpDecl _ (Binding _ (Immediate _ x) _)) = go x
+  where
+    go p0 = case p0 of
+      PParens _ p -> go p
+      PTyped _ p _ -> go p
+      PVar _ v | ".build" `Text.isSuffixOf` textOf v -> Just $ nameOf v
+      _ -> Nothing
 
-    mainReaches fn ds0 = case filter ((== qv) . textOf) vs of
-      v : _ -> do
+toBuildName _ = Nothing
+
+dependenciesModule :: MonadIO m => Text -> DepGraph -> FilePath -> [Decl] -> m (Map AString Exported)
+dependenciesModule mainNm gr fn ds0 = do
+  exs0 <- mainReaches
+  bs <- exportedFuncs ds0
+  exs1 <- sequence [ (n, ) . Exported v t <$> reachableDecls gr (Set.fromList (nameOf v : typeNames t)) | (n, (v, t)) <- bs ]
+  pure $ Map.fromList (exs0 ++ exs1)
+  where
+    mainReaches = case filter ((== qv) . textOf) vs of
+      [] -> pure []
+      [v] -> do
         ds <- reachableDecls gr (Set.singleton $ nameOf v)
         pure [(AString (positionOf v) "main", Main v ds)]
-      [] -> pure []
+      _ -> unreachablen00 "multiple mains" vs
       where
         vs = concat [ universeBi b | ExpDecl _ (Binding _ b _) <- ds0 ]
         qv = mkQNameText (Text.pack fn) mainNm
@@ -50,9 +65,6 @@ exportedFuncs ds = do
   case bs List.\\ cs of
     [] -> pure [ (a, (b, c)) | ExportDecl _ a b c <- ds ]
     bs' -> errn00 "duplicate export names" [ n | ExportDecl _ n _ _ <- ds, n `elem` bs' ]
-
-modulesDepGraph :: [Module] -> DepGraph
-modulesDepGraph ms = depGraph $ concat [ ds | Module _ ds <- ms ]
 
 reachableDecls :: MonadIO m => DepGraph -> Set Name -> m [Decl]
 reachableDecls gr nms = catMaybes <$> mapM f (sccs gr)

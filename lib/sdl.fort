@@ -1,0 +1,242 @@
+qualifier Prelude = "lib/prelude.fort"
+
+build = append-build "cbits/sdl_ffi.c -I/usr/local/include `sdl2-config --libs`"
+
+type SDL_Event = Opaque "SDL_Event"
+type SDL_EventType = Int
+type SDL_Renderer = Opaque "SDL_Renderer"
+type SDL_Window = Opaque "SDL_Window"
+type SDL_Texture = Opaque "SDL_Texture"
+type SDL_Surface = Opaque "SDL_Surface"
+type SDL_Keycode = Int
+
+sdl-get-window-size = extern "SDL_GetWindowSize" `(Pointer SDL_Window, Pointer Int, Pointer Int) -> ()`
+
+get-window-size = \win -> do
+  sdl-get-window-size (win, widthp, heightp)
+  (@widthp, @heightp)
+
+test = do
+  println "hello, sdl"
+  or-exit $ with-sdl (init-video | init-timer) $ do
+    with-window "fort sdl" 0 0 800 700 window-shown $ \win -> do
+      println $ get-window-size win
+      with-ok (get-window-surface win) $ \srfc -> do
+        with-ok (get-renderer win) $ \rndr -> do
+          with-text-input $ do
+  	    loop { x = 50, y = 50 } $ \st -> do
+	      delay 0xf
+	      set-render-draw-color rndr black
+	      or-exit $ render-clear rndr
+	      set-render-draw-color rndr blue
+              or-exit $ render-fill-rect rndr st.x st.y 20 20
+	      render-present rndr
+	      case poll-event of
+	        Ok event -> do
+                  ty = get-event-type event
+                  if
+                    ty == quit-event -> Done ()
+                    ty == textinput -> do
+	              void $ puts $ get-text-input-text event
+	              Continue st
+	            ty == keydown -> do
+	              k = get-key-keysym-sym event
+	              if
+		        k == sdlk-escape -> Done ()
+		        k == sdlk-left -> Continue $ st with x = st.x - 10
+		        k == sdlk-right -> Continue $ st with x = st.x + 10
+ 	                k == sdlk-up -> Continue $ st with y = st.y - 10
+                        k == sdlk-down -> Continue $ st with y = st.y + 10
+	                otherwise -> Continue st
+                    otherwise -> Continue st
+		_ -> Continue st
+            Ok ()
+
+  println "goodbye, sdl"
+
+
+sdl-get-error = extern "SDL_GetError" `() -> Pointer Char`
+~get-error = sdl-get-error ()
+
+null-err = \x -> if
+  is-null x -> SDLErr get-error
+  otherwise -> Ok x
+
+zero-ok = \x -> case x of
+  0 -> Ok ()
+  _ -> SDLErr get-error
+
+or-exit = \x -> case x of
+  Ok _ -> ()
+  SDLErr s -> do
+    void $ puts s
+    panic "sdl error"
+
+sdl-init = extern "SDL_Init" `Int -> Int`
+
+type SDLOk = \a => Sum
+  Ok: a
+  SDLErr: Pointer Char
+
+init : `Int -> SDLOk ()` = sdl-init .> zero-ok
+
+sdl-quit = extern "SDL_Quit" `() -> ()`
+~quit = sdl-quit ()
+
+with-sdl = \flags -> bracket (init flags) quit
+
+sdl-create-window = extern "SDL_CreateWindow" `(Pointer Char, Int, Int, Int, Int, Int) -> Pointer SDL_Window`
+create-window = \title x y w h flags -> null-err $ sdl-create-window (cast title `Pointer Char`, x, y, w, h, flags)
+
+sdl-destroy-window = extern "SDL_DestroyWindow" `Pointer SDL_Window -> ()`
+destroy-window = sdl-destroy-window
+
+with-window = \title x y w h flags -> defer (create-window title x y w h flags) destroy-window
+
+sdl-get-window-surface = extern "SDL_GetWindowSurface" `Pointer SDL_Window -> Pointer SDL_Surface`
+get-window-surface = sdl-get-window-surface .> null-err
+
+sdl-get-renderer = extern "SDL_GetRenderer" `Pointer SDL_Window -> Pointer SDL_Renderer`
+get-renderer = sdl-get-renderer .> null-err
+
+sdl-start-text-input = extern "SDL_StartTextInput" `() -> ()`
+~start-text-input = sdl-start-text-input ()
+
+sdl-stop-text-input = extern "SDL_StopTextInput" `() -> ()`
+~stop-text-input = sdl-stop-text-input ()
+
+with-text-input = bracket start-text-input stop-text-input
+
+with-texture = \m -> defer m destroy-texture
+with-surface = \m -> defer m free-surface
+
+destroy-texture = extern "SDL_DestroyTexture" `Pointer SDL_Texture -> ()`
+free-surface = extern "SDL_FreeSurface" `Pointer SDL_Surface -> ()`
+
+sdl-delay = extern "SDL_Delay" `UInt -> ()`
+delay = sdl-delay
+
+sdl-poll-event = extern "SDL_FFI_PollEvent" `() -> Pointer SDL_Event`
+~poll-event = null-err $ sdl-poll-event ()
+
+sdl-wait-event = extern "SDL_FFI_WaitEvent" `() -> Pointer SDL_Event`
+~wait-event = null-err $ sdl-wait-event ()
+
+sdl-set-render-draw-color = extern "SDL_SetRenderDrawColor" `(Pointer SDL_Renderer, U 8, U 8, U 8, U 8) -> ()`
+
+set-render-draw-color = \rndr col ->
+  sdl-set-render-draw-color (rndr, r, g, b, a)
+  where
+    r = cast (col >> 24) `U 8`
+    g = cast (col >> 16) `U 8`
+    b = cast (col >> 8) `U 8`
+    a = cast col `U 8`
+
+sdl-render-clear = extern "SDL_RenderClear" `Pointer SDL_Renderer -> Int`
+render-clear = sdl-render-clear .> zero-ok
+
+sdl-get-text-input-text = extern "SDL_FFI_GetTextInputText" `Pointer SDL_Event -> Pointer Char`
+get-text-input-text = sdl-get-text-input-text
+
+sdl-render-copy-rotate = extern "SDL_FFI_RenderCopyRotate" `(Pointer SDL_Renderer, Pointer SDL_Texture, Int, Int, Int, Int, Int, Int, Int, Int, Double, Int, Int) -> Int`
+
+sdl-render-copy = extern "SDL_FFI_RenderCopy" `(Pointer SDL_Renderer, Pointer SDL_Texture, Int, Int, Int, Int, Int, Int, Int, Int) -> Int`
+render-copy = curry10 $ sdl-render-copy .> zero-ok
+
+sdl-create-renderer = extern "SDL_CreateRenderer" `(Pointer SDL_Window, Int, UInt) -> Pointer SDL_Renderer`
+create-renderer = curry3 $ sdl-create-renderer .> null-err
+
+destroy-renderer = extern "SDL_DestroyRenderer" `Pointer SDL_Renderer -> ()`
+
+with-renderer = \win idx flags -> defer (create-renderer win idx flags) destroy-renderer
+
+sdl-render-fill-rect = extern "SDL_FFI_RenderFillRect" `(Pointer SDL_Renderer, Int, Int, Int, Int) -> Int`
+render-fill-rect = curry5 $ sdl-render-fill-rect .> zero-ok
+
+sdl-fill-rect = extern "SDL_FFI_FillRect" `(Pointer SDL_Surface, Int, Int, Int, Int, U 32) -> Int`
+fill-rect = curry6 $ sdl-fill-rect .> zero-ok
+
+render-present = extern "SDL_RenderPresent" `Pointer SDL_Renderer -> ()`
+
+sdl-get-event-type = extern "SDL_FFI_GetEventType" `Pointer SDL_Event -> SDL_EventType`
+
+get-event-type = sdl-get-event-type
+
+sdl-update-window-surface = extern "SDL_UpdateWindowSurface" `Pointer SDL_Window -> Int`
+
+update-window-surface = \x -> zero-ok $ sdl-update-window-surface x
+
+get-surface-width = extern "SDL_FFI_GetSurfaceWidth" `Pointer SDL_Surface -> Int`
+get-surface-height = extern "SDL_FFI_GetSurfaceHeight" `Pointer SDL_Surface -> Int`
+get-surface-size = \srfc -> (get-surface-width srfc, get-surface-height srfc)
+
+sdl-create-texture-from-surface = extern "SDL_CreateTextureFromSurface" `(Pointer SDL_Renderer, Pointer SDL_Surface) -> Pointer SDL_Texture`
+
+create-texture-from-surface = curry $ sdl-create-texture-from-surface .> null-err
+
+;; "solarized" colors
+brblack = 0x002b36ff
+black = 0x073642ff
+brgreen = 0x586e75ff
+bryellow = 0x657b83ff
+brblue = 0x839496ff
+brcyan = 0x93a1a1ff
+white = 0xeee8d5ff
+brwhite = 0xfdf6e3ff
+yellow = 0xb58900ff
+brred = 0xcb4b16ff
+red = 0xdc322fff
+magenta = 0xd33682ff
+brmagenta = 0x6c71c4ff
+blue = 0x268bd2ff
+cyan = 0x2aa198ff
+green = 0x859900ff
+
+get-key-keysym-sym = extern "SDL_FFI_GetKeyKeysymSym" `Pointer SDL_Event -> Int`
+
+formatp = alloca `UInt`
+accessp = alloca `Int`
+widthp = alloca `Int`
+heightp = alloca `Int`
+
+sdl-query-texture = extern "SDL_QueryTexture" `(Pointer SDL_Texture, Pointer UInt, Pointer Int, Pointer Int, Pointer Int) -> Int`
+
+get-texture-size : `Pointer SDL_Texture -> SDLOk (Int, Int)` = \txtr ->
+  with-ok (zero-ok $ sdl-query-texture (txtr, formatp, accessp, widthp, heightp)) $ \_ -> Ok (@widthp, @heightp)
+
+init-timer = 1
+init-video = 32
+keydown = 768
+window-shown = 4
+mousebuttondown = 1025
+mousebuttonup = 1026
+mousemotion = 1024
+mousewheel = 1027
+quit-event = 256
+renderer-software = 1
+textinput = 771
+userevent = 32768
+window-allow-highdpi = 8192
+window-resizable = 32
+window-event = 512
+sdlk-backspace = 8
+sdlk-capslock = 1073741881
+sdlk-delete = 127
+sdlk-down = 1073741905
+sdlk-escape = 27
+sdlk-insert = 1073741897
+sdlk-kp-enter = 1073741912
+sdlk-lalt = 1073742050
+sdlk-lctrl = 1073742048
+sdlk-left = 1073741904
+sdlk-lgui = 1073742051
+sdlk-ralt = 1073742054
+sdlk-rctrl = 1073742052
+sdlk-return = 13
+sdlk-rgui = 1073742055
+sdlk-right = 1073741903
+sdlk-space = 32
+sdlk-tab = 9
+sdlk-up = 1073741906
+
+

@@ -243,6 +243,11 @@ toCaseAlt :: MonadIO m => Abs.CaseAlt' Position -> m (CaseAlt Position)
 prettyLam :: [Binding a] -> Exp a -> Doc ann
 prettyIf :: [IfBranch a] -> Exp a -> Doc ann
 
+pushInsideLam :: Exp a -> (Exp a -> Exp a) -> Exp a
+pushInsideLam x f = case x of
+  Lam pos v e -> Lam pos v $ pushInsideLam e f
+  _ -> f x
+
 toExp :: MonadIO m => Abs.Exp' Position -> m (Exp Position)
 toExp x = case x of
   Abs.Lam _ bs c -> do
@@ -270,7 +275,10 @@ toExp x = case x of
   Abs.Tuple a b c -> Tuple a <$> mapM toTupleElemExp (cons2 b (fromList c))
   Abs.Var a b -> Var a <$> toLIdent b
   Abs.XArray a b -> Array a <$> mapM toLayoutElemExp (fromList b)
-  Abs.Where a b cs -> Where a <$> toExp b <*> mapM toLayoutElemExpDecl (fromList cs)
+  Abs.Where a b cs -> do
+    be <- toExp b
+    ds <- mapM toLayoutElemExpDecl (fromList cs)
+    pure $ pushInsideLam be $ \e -> Where a e ds
 
   Abs.XDot a b c -> do
     e <- toExp b

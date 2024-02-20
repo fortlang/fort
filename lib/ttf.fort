@@ -1,0 +1,84 @@
+qualifier Prelude = "lib/prelude.fort"
+qualifier SDL = "lib/sdl.fort"
+
+build = append-build "cbits/ttf_ffi.c -lSDL2_ttf"
+
+type TTF_Font = Opaque "TTF_Font"
+
+test = do
+  println "hello, ttf"
+  or-exit $ with-sdl init-video $ with-ttf $ do
+    with-window "fort ttf" 0 0 400 200 window-shown $ \win -> do
+      (win-w, win-h) = get-window-size win
+      println (win-w, win-h)
+      with-renderer win -1 0x0 $ \rndr -> do
+        set-render-draw-color rndr black
+	or-exit $ render-clear rndr
+        with-font "Monoid-Regular.ttf" 22 $ \font -> do
+	  h = font-line-skip font
+	  s = "\xc2\xb6\xc2\xb7hello, fort ttf \xce\xbb"
+	  print "text size = "
+	  println $ size-text font s
+	  with-surface (render-utf8-blended font s yellow) $ \srfc -> do
+	    with-texture (create-texture-from-surface rndr srfc) $ \txt -> do
+	      with-ok (get-texture-size txt) $ \(txt-w, txt-h) -> do
+	        print "texture size = "
+		println (txt-w, txt-h)
+	        x = (win-w - txt-w) / 2
+		y = (win-h - txt-h) / 2
+	        set-render-draw-color rndr brblack
+                or-exit $ render-fill-rect rndr x y txt-w txt-h
+                or-exit $ render-copy rndr txt 0 0 win-w win-h x y txt-w txt-h
+	        render-present rndr
+	        loop () $ \() -> do
+	             case wait-event of
+	               Ok event -> if
+                         get-event-type event == quit-event -> Done ()
+                         otherwise -> Continue ()
+                       _ -> Continue ()
+                Ok ()
+
+  println "goodbye, ttf"
+
+ttf-init = extern "TTF_Init" `() -> Int`
+ttf-quit = extern "TTF_Quit" `() -> ()`
+~quit = ttf-quit ()
+~init = zero-ok $ ttf-init ()
+
+with-ttf = bracket init quit
+
+zero-ok = \x -> case x of
+  0 -> Ok ()
+  _ -> SDLErr $ cast "TTF error: unexpected non-zero return value" `Pointer Char`
+
+with-font = \s sz -> defer (open-font s sz) close-font
+
+ttf-open-font = extern "TTF_OpenFont" `(Pointer Char, Int) -> Pointer TTF_Font`
+open-font = \s sz -> null-err $ ttf-open-font (cast s `Pointer Char`, sz)
+
+null-err = \x -> if
+  is-null x -> SDLErr $ cast "TTF error: unexpected null return value" `Pointer Char`
+  otherwise -> Ok x
+
+close-font = extern "TTF_CloseFont" `Pointer TTF_Font -> ()`
+
+ttf-render-text-blended = extern "TTF_FFI_RenderText_Blended" `(Pointer TTF_Font, Pointer Char, UInt) -> Pointer SDL_Surface`
+
+ttf-render-text-solid = extern "TTF_FFI_RenderText_Solid" `(Pointer TTF_Font, Pointer Char, UInt) -> Pointer SDL_Surface`
+
+ttf-render-text-lcd = extern "TTF_FFI_RenderText_LCD" `(Pointer TTF_Font, Pointer Char, UInt, UInt) -> Pointer SDL_Surface`
+
+render-text-blended = \font s col -> null-err $ ttf-render-text-blended (font, cast s `Pointer Char`, col)
+render-text-solid = \font s col -> null-err $ ttf-render-text-solid (font, cast s `Pointer Char`, col)
+render-text-lcd = \font s fg bg -> null-err $ ttf-render-text-lcd (font, cast s `Pointer Char`, fg, bg)
+
+font-line-skip = extern "TTF_FontLineSkip" `Pointer TTF_Font -> Int`
+
+ttf-render-utf8-blended = extern "TTF_FFI_RenderUTF8_Blended" `(Pointer TTF_Font, Pointer Char, UInt) -> Pointer SDL_Surface`
+render-utf8-blended = \font s col -> null-err $ ttf-render-utf8-blended (font, cast s `Pointer Char`, col)
+
+ttf-size-text = extern "TTF_SizeText" `(Pointer TTF_Font, Pointer Char, Pointer Int, Pointer Int) -> Int`
+
+size-text = \font s -> do
+  with-ok (zero-ok $ ttf-size-text (font, cast s `Pointer Char`, widthp, heightp)) $ \_ -> Ok (@widthp, @heightp)
+

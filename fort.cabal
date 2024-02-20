@@ -20,10 +20,10 @@ name:               fort
 -- PVP summary:     +-+------- breaking API changes
 --                  | | +----- non-breaking API additions
 --                  | | | +--- code changes with no API change
-version:            0.1.2.0
+version:            0.1.3.0
 
 -- URL for the project homepage or repository.
-homepage:           https://github.com/fortlang
+homepage:           https://github.com/fortlang/fort
 
 -- A short (one-line) description of the package.
 synopsis: compiler for the fort programming language

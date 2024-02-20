@@ -1,4 +1,5 @@
 type Int = I 32
+type UInt = U 32
 type Char = C 8
 type Double = F 64
 type Float = F 32
@@ -6,6 +7,13 @@ type Size = U 64
 
 operator $ = apply infixr 0.0
 apply = \f ~a -> f a
+
+operator .. = compose infixr 9.0
+operator .> = forward-compose infixl 9.0
+
+forward-compose = \f g x -> g (f x)
+
+compose = \f g x -> f (g x)
 
 pair = \x y -> (x, y)
 swap = \(x, y) -> (y, x)
@@ -48,6 +56,14 @@ operator - = subtract infixl 6.0
 subtract = curry Prim.sub
 
 curry = \f x y -> f (x, y)
+curry3 = \fn a b c -> fn (a, b, c)
+curry4 = \fn a b c d -> fn (a, b, c, d)
+curry5 = \fn a b c d e -> fn (a, b, c, d, e)
+curry6 = \fn a b c d e f -> fn (a, b, c, d, e, f)
+curry7 = \fn a b c d e f g -> fn (a, b, c, d, e, f, g)
+curry8 = \fn a b c d e f g h -> fn (a, b, c, d, e, f, g, h)
+curry9 = \fn a b c d e f g h i -> fn (a, b, c, d, e, f, g, h, i)
+curry10 = \fn a b c d e f g h i j -> fn (a, b, c, d, e, f, g, h, i, j)
 
 operator @ = load
 load = Prim.load
@@ -73,6 +89,10 @@ bit-shift-l = curry Prim.shl
 operator >> = bit-shift-r infixl 8.0
 bit-shift-r = curry Prim.shr
 
+append-build = Prim.append-build
+
+build = append-build "cbits/builtins.c"
+
 debug = \~a -> when Prim.slow-safe-build $ do
   print "DEBUG"
   brackets $ print a
@@ -81,10 +101,10 @@ unsafe = \f -> case f of
   Ok a -> a
   b -> panic b
 
-bracket = \~pre ~post ~f -> do
-  pre
+bracket = \pre post f -> do
+  _ = pre
   a = f
-  post
+  _ = post
   a
 
 loop = \a0 ~f -> do
@@ -277,11 +297,24 @@ fseek = \fp offset whence -> case c-fseek (fp, cast offset `U 64`, cast whence `
 
 fsize = \fp ->
   with-ok (ftell fp) $ \i ->
-    with-ok-void (fseek fp 0 seek-end) $
+    with-ok (\_ -> fseek fp 0 seek-end) $
       with-ok (ftell fp) $ \j -> 
-        with-ok-void (fseek fp 0 i) $ Ok j
+        with-ok (\_ -> fseek fp 0 i) $ Ok j
 
 c-fopen = extern "fopen" `(Pointer Char, Pointer Char) -> Pointer File`
+
+c-fputc = extern "fputc" `(Int, Pointer File) -> Int`
+c-fputs = extern "fputs" `(Pointer Char, Pointer File) -> Int`
+
+fputs = \s fp -> do
+  r = c-fputs (cast s `Pointer Char`, fp)
+  if r >= 0 -> Ok ()
+     otherwise -> ErrFPutS
+
+fputc = \i fp -> do
+  i' = c-fputc (i, fp)
+  if i' == i -> Ok ()
+     otherwise -> ErrFPutC
 
 fopen = \fn mode -> do
   fp = c-fopen (cast fn `Pointer Char`, cast mode `Pointer Char`)
@@ -293,7 +326,12 @@ fclose = \fp -> if
   c-fclose fp == 0 -> Ok ()
   otherwise -> ErrFClose errno
 
-with-ok-void = \x y -> with-ok x $ \() -> y
+defer = \x g f -> case x of
+  Ok a -> do
+    b = f a
+    g a
+    b
+  err -> err
 
 with-ok = \x f -> case x of
   Ok a -> f a

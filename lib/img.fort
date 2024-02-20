@@ -1,0 +1,37 @@
+qualifier SDL = "lib/sdl.fort"
+
+build = append-build "cbits/img_ffi.c -lSDL2_image"
+
+img-load-texture = extern "IMG_LoadTexture" `(Pointer SDL_Renderer, Pointer Char) -> Pointer SDL_Texture`
+
+load-texture = \rndr s -> do
+  p = cast s `Pointer Char`
+  img = img-load-texture (rndr, p)
+  if
+    is-null img -> SDLErr p
+    otherwise -> Ok img
+
+test = do
+  println "hello, img"
+  or-exit $ with-sdl init-video $ do
+    with-window "fort img" 0 0 200 200 window-shown $ \win -> do
+      (win-w, win-h) = get-window-size win
+      println (win-w, win-h)
+      with-renderer win -1 0x0 $ \rndr -> do
+        set-render-draw-color rndr black
+	or-exit $ render-clear rndr
+        with-ok (load-texture rndr "fort.svg") $ \img ->
+          with-ok (get-texture-size img) $ \(img-w, img-h) -> do
+            println (img-w, img-h)
+            or-exit $ render-copy rndr img 0 0 win-w win-h ((win-w - img-w) / 2) ((win-h - img-h) / 2) img-w img-h
+	    render-present rndr
+	    loop () $ \() -> do
+	      case wait-event of
+	        Ok event -> if
+		  get-event-type event == quit-event -> Done ()
+                  otherwise -> Continue ()
+		_ -> Continue ()
+            Ok ()
+
+  println "goodbye, img"
+

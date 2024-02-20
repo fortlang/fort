@@ -66,6 +66,7 @@ primCallTys = Map.fromList $ fmap f
   , ("Prim.memcpy", isTriple memcpyTC)
   , ("Prim.memmove", isTriple memmoveTC)
   , ("Prim.memset", isTriple memsetTC)
+  , ("Prim.append-build", appendBuildTC)
   ]
   where
     f (nm, g) = (AString noPosition nm, g)
@@ -288,6 +289,7 @@ primCalls = Map.fromList $ fmap f
   , ("Prim.memcpy", memFun)
   , ("Prim.memmove", memFun)
   , ("Prim.memset", memFun)
+  , ("Prim.append-build", \_ -> appendBuild)
   ]
   where
     f (n, g) = (AString noPosition n, g n)
@@ -306,6 +308,11 @@ negVal x = case typeOf x of
   _ -> sub (VScalar pos (VInt pos 0)) x
   where
   pos = positionOf x
+
+appendBuildTC :: Ty -> Err Ty
+appendBuildTC x = case x of
+  TyString pos -> pure $ TyUnit pos
+  _ -> throwError "expected string input type"
 
 float :: Ty -> Err Ty
 float a = if
@@ -368,6 +375,13 @@ eqVal x y = case (x, y) of
   _ -> err111 "unexpected values to Prim.eq" x y noTCHint
   where
   posx = positionOf x
+
+appendBuild :: Val -> M Val
+appendBuild x = case x of
+  VScalar _ (VString pos s) -> do
+    modify' $ \st -> st{ buildCmd = s : buildCmd st }
+    pure $ VUnit pos
+  _ -> err101 "expected immutable String value to Prim.append-build" x noTCHint
 
 printPrim :: Val -> M ()
 printPrim v = case typeOf v of
