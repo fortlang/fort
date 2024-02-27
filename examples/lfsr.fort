@@ -1,0 +1,30 @@
+;; the good old Linear Feedback Shift Register
+;; with the right taps, shouldn't loop for 2^32-1 iterations
+;; with one argument, you're passing in a seed
+;; with two arguments, you're passing in a seed and the taps
+
+qualifier Prelude = "lib/prelude.fort"
+
+main = do
+    seed = if
+        argc > 1 -> atoi @(argv # 1)
+        otherwise -> cast 0x0b0e `Int`
+    taps = if
+        argc > 2 -> atoi @(argv # 2)
+        otherwise -> cast 0xb400 `Int`
+
+    st = lfsr-next seed taps
+
+    loop st $ \state -> if
+        state == seed -> do
+            println "looped!"
+            Done()
+        otherwise -> do
+            println state
+            Continue (lfsr-next state taps)
+
+lfsr-next = \state taps -> do
+    next = state >> 1
+    if
+        state & 0x001 > 0 -> next ^ taps
+        otherwise -> next
