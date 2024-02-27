@@ -297,9 +297,9 @@ fseek = \fp offset whence -> case c-fseek (fp, cast offset `U 64`, cast whence `
 
 fsize = \fp ->
   with-ok (ftell fp) $ \i ->
-    with-ok (\_ -> fseek fp 0 seek-end) $
+    with-ok (fseek fp 0 seek-end) $ \() ->
       with-ok (ftell fp) $ \j -> 
-        with-ok (\_ -> fseek fp 0 i) $ Ok j
+        with-ok (fseek fp 0 i) $ \() -> Ok j
 
 c-fopen = extern "fopen" `(Pointer Char, Pointer Char) -> Pointer File`
 

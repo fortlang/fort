@@ -12,9 +12,9 @@ cabal run fort -- examples/fannkuch-redux.fort --run
 cabal run fort -- examples/n-body.fort --run
 cabal run fort -- examples/fasta.fort --run
 cabal run fort -- lib/rope.fort --main-is=test --run
-cabal run fort -- examples/lexer.fort --run --main-is=test
-cabal run fort -- lib/ansi.fort --main-is=test --run
-cabal run fort -- examples/colorize.fort
 cabal run fort -- examples/lfsr.fort
 examples/lfsr.fort.ll.exe | wc
+cabal run fort -- lib/ansi.fort --main-is=test --run
+cabal run fort -- examples/lexer.fort --run --main-is=test
+cabal run fort -- examples/colorize.fort
 examples/colorize.fort.ll.exe examples/mandelbrot.fort
