@@ -439,7 +439,7 @@ scalarToVScalar :: Scalar -> VScalar
 scalarToVScalar x = case x of
   Char pos t -> VChar pos $ read $ Text.unpack t
   Double pos v -> VFloat pos $ valOf v
-  Int pos t -> VInt pos $ read $ Text.unpack t
+  Int pos t -> VInt pos $ read $ removeUnderscores $ Text.unpack t
   String pos v -> VString pos $ valOf v
   UInt pos v -> case v of
     Dec{} -> VInt pos $ valOf v

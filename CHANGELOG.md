@@ -1,5 +1,10 @@
 # Revision history for fort
 
+## 0.1.4.0 -- 2024-02-27
+    numeric literals are now case insensitive and can contain underscores
+    bugfix in prelude.fort which caused the colorize example to fail
+    new linear feedback shift register example
+
 ## 0.1.3.0 -- 2024-02-21
     added append-build to primitives
     fixed where clause bug

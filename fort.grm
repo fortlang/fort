@@ -132,19 +132,19 @@ Scalar nonterminal
   AFalse ::= "False"
   Double ::= ADouble
   UInt ::= UInt
-  Int ::= terminal ('-') digit+
+  Int ::= terminal ('-') digit (digit | '_')*
   Char ::= terminal '\'' ((char - '\'' - '\\') | ('\\' '\'') | ('\\' '\\') | ('\\' 'n') | ('\\' digit+)) '\''
   String ::= AString
 
 UInt nonterminal
-  Dec ::= terminal digit+
-  Hex ::= terminal "0x" (digit | ['a' .. 'f'])+
-  Oct ::= terminal "0o" ['0' .. '7']+
-  Bin ::= terminal "0b" ['0' .. '1']+
+  Dec ::= terminal digit (digit | '_')*
+  Hex ::= terminal "0" ('x' | 'X') (digit | ['a' .. 'f'] | ['A' .. 'F']) (digit | ['a' .. 'f'] | ['A' .. 'F'] | '_')*
+  Oct ::= terminal "0" ('o' | 'O') ['0' .. '7'] (['0' .. '7'] | '_')*
+  Bin ::= terminal "0" ('b' | 'B') ['0' .. '1'] (['0' .. '1'] | '_')*
 
 LIdent ::= terminal (lower | '_') (letter | digit | '_' | '-' | '\'')*
 UIdent ::= terminal upper         (letter | digit | '_' | '-' | '\'')*
-ADouble ::= terminal ('-')? (digit+ '.' digit+ ('e' '-'? digit+)?)
+ADouble ::= terminal ('-')? digit (digit | '_')* '.' digit (digit | '_')* ('e' '-'? digit (digit | '_')*)?
 AString ::= terminal '"' ((char - '"' - '\\') | ('\\' '"') | ('\\' '\\') | ('\\' 'n') | ('\\' digit+) | ('\\' 'x' (digit | ['a' .. 'f'])+))* '"'
 
 InfixOp  ::= terminal           ('+' | '-' | '=' | '!' | '#' | '$' | '%' | '^' | '&' | '*' | '|' | '/' | '<' | '>' | '.' | '?' | '~' | ':')+

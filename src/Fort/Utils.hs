@@ -136,15 +136,18 @@ class ValTok a b | a -> b where
 
 instance ValTok UInt Integer where
   valOf x = case x of
-    Bin _ a -> case readBin $ List.drop 2 $ Text.unpack a of
+    Bin _ a -> case readBin $ removeUnderscores $ List.drop 2 $ Text.unpack a of
       [(n, "")] -> n
       b -> unreachable "valOf:Bin" b
-    Dec _ a -> read $ Text.unpack a
-    Hex _ a -> read $ Text.unpack a
-    Oct _ a -> read $ Text.unpack a
+    Dec _ a -> read $ removeUnderscores $ Text.unpack a
+    Hex _ a -> read $ removeUnderscores $ Text.unpack a
+    Oct _ a -> read $ removeUnderscores $ Text.unpack a
+
+removeUnderscores :: String -> String
+removeUnderscores = filter ((/=) '_')
 
 instance ValTok AString Text where
   valOf x = Text.pack $ read $ Text.unpack $ textOf x
 
 instance ValTok ADouble Double where
-  valOf = read . Text.unpack . textOf
+  valOf = read . removeUnderscores . Text.unpack . textOf
