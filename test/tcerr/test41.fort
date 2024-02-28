@@ -1,1 +1,4 @@
-main = Prim.neg Red
+main = negate Red
+
+qualifier Prelude = "lib/prelude.fort"
+

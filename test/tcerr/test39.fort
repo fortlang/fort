@@ -1,1 +1,4 @@
-main = Prim.eq (Just 'c', Just)
+
+qualifier Prelude = "lib/prelude.fort"
+
+main = equal (Just 'c') Just

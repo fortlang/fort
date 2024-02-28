@@ -1,17 +1,7 @@
-argcp = extern "FORT_argc" `Pointer Int`
-argvp = extern "FORT_argv" `Pointer (Pointer (Array 256 (Pointer Char)))`
 
-type Int = I 32
-type Char = C 8
-
-argc = Prim.load argcp
-argv = Prim.load argvp
-
-println = \a -> do
-  Prim.print a
-  Prim.print '\n'
+qualifier Prelude = "lib/prelude.fort"
 
 main = do
   println argc
-  println (Prim.index (argv, 0))
+  println $ index argv 0
 

@@ -1,11 +1,6 @@
-operator - = sub infixl 6.0
+sub = subtract
 
-sub = \a b -> Prim.sub (a, b)
-
-print = Prim.print
-println = \x -> do
-  print x
-  print "\n"
+qualifier Prelude = "lib/prelude.fort"
 
 main = do
   tailrec

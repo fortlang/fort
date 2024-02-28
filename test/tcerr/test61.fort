@@ -1,1 +1,4 @@
-main = Prim.eq (Just 'a', Just 23)
+
+qualifier Prelude = "lib/prelude.fort"
+
+main = equal (Just 'a') (Just 23)

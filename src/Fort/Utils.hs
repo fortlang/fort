@@ -40,10 +40,8 @@ import Data.Text (Text)
 import Debug.Trace
 import Fort.AST hiding (Char, Int, String)
 import Fort.Errors
-import Numeric (readBin)
 import Prelude
 import Prettyprinter
-import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -125,29 +123,9 @@ unionWithM f m n = mapM g $ Map.unionWith h (fmap Right m) (fmap Right n)
 instance Pretty a => Pretty (Set a) where
   pretty x = braced $ fmap pretty (Set.toList x)
 
-instance Ord Name where
-  compare a b = compare (textOf a) (textOf b)
-
 instance Eq Name where
   a == b = textOf a == textOf b
 
-class ValTok a b | a -> b where
-  valOf :: a -> b
+instance Ord Name where
+  compare a b = compare (textOf a) (textOf b)
 
-instance ValTok UInt Integer where
-  valOf x = case x of
-    Bin _ a -> case readBin $ removeUnderscores $ List.drop 2 $ Text.unpack a of
-      [(n, "")] -> n
-      b -> unreachable "valOf:Bin" b
-    Dec _ a -> read $ removeUnderscores $ Text.unpack a
-    Hex _ a -> read $ removeUnderscores $ Text.unpack a
-    Oct _ a -> read $ removeUnderscores $ Text.unpack a
-
-removeUnderscores :: String -> String
-removeUnderscores = filter ((/=) '_')
-
-instance ValTok AString Text where
-  valOf x = Text.pack $ read $ Text.unpack $ textOf x
-
-instance ValTok ADouble Double where
-  valOf = read . removeUnderscores . Text.unpack . textOf

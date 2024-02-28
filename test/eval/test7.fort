@@ -1,8 +1,5 @@
-operator + = add infixl 6.0
-
-add = \x y -> Prim.add (x, y)
-cast = \x t -> Prim.cast (x, t)
-
 main = do
-  Prim.print (cast 42 `I 8` + cast 256 `I 8`)
-  Prim.print '\n'
+  println (cast 42 `I 8` + cast 256 `I 8`)
+
+qualifier Prelude = "lib/prelude.fort"
+

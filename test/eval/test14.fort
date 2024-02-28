@@ -1,5 +1,7 @@
 main = do
   println (cast 1 `I 16`)
+  x = cast 1.23 `F 32`
+  println x
 
   println (cast 1 `I 64`)
   println (cast 0x1 `U 64`)
@@ -12,10 +14,6 @@ main = do
   println (cast p `I 32`)
   println (cast 1.23 `I 64`)
 
-println = \x -> do
-  Prim.print x
-  Prim.print '\n'
+qualifier Prelude = "lib/prelude.fort"
 
-cast = curry Prim.cast
 
-curry = \f a b -> f (a, b)

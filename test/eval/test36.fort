@@ -1,10 +1,9 @@
-println = \x -> do
-  Prim.print x
-  Prim.print '\n'
+
+qualifier Prelude = "lib/prelude.fort"
 
 main = do
-  println (Prim.typeof [True, False])
-  println (Prim.typeof `Array 3 Bool`)
-  println (Prim.countof [False, True, False])
-  p = Prim.alloca `Array 3 Bool`
-  println (Prim.countof p)
+  println (typeof [True, False])
+  println (typeof `Array 3 Bool`)
+  println (countof [False, True, False])
+  p = alloca `Array 3 Bool`
+  println (countof p)

@@ -1,1 +1,4 @@
-main = Prim.add 4
+main = add 4
+
+qualifier Prelude = "lib/prelude.fort"
+

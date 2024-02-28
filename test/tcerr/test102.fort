@@ -4,12 +4,11 @@ type St = Record
 
 baz = \st -> (st : `St`).foo
 
-println = \a -> do
-  Prim.print a
-  Prim.print '\n'
-
 main = do
   r = record
     foo = 12
     ;; bar = 'a'
   println (baz r)
+
+qualifier Prelude = "lib/prelude.fort"
+

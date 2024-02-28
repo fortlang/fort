@@ -9,6 +9,4 @@ main = do
     baz = "hello"
   println r
 
-println = \x -> do
-  Prim.print x
-  Prim.print '\n'
+qualifier Prelude = "lib/prelude.fort"

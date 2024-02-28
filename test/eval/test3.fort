@@ -1,8 +1,5 @@
-print = Prim.print
 
-println = \x -> do
-  print x
-  print "\n"
+qualifier Prelude = "lib/prelude.fort"
 
 main = do
   println "hello, world"

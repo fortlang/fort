@@ -1,1 +1,4 @@
-main = Prim.cast (42, 42)
+
+qualifier Prelude = "lib/prelude.fort"
+
+main = cast 42 42

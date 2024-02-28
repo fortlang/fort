@@ -1,2 +1,4 @@
-main = Prim.cast (Red, `F 32`)
+qualifier Prelude = "lib/prelude.fort"
+
+main = cast Red `F 32`
 

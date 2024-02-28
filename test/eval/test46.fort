@@ -2,9 +2,8 @@ type T = Sum
   A: Bool
   B
 
-println = \a -> do
-  Prim.print a
-  Prim.print '\n'
+qualifier Prelude = "lib/prelude.fort"
+
 
 main = do
-  println (Prim.cast (B, `T`))
+  println $ cast B `T`

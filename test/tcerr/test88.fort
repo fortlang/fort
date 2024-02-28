@@ -1,6 +1,9 @@
+
+qualifier Prelude = "lib/prelude.fort"
+
 type T = Sum
   ATag
 
 main = do
-  p = Prim.alloca `T`
-  Prim.store (p, Blue)
+  p = alloca `T`
+  store p Blue

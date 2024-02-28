@@ -1,14 +1,6 @@
-add = \x y -> Prim.add (x, y)
-
-print = Prim.print
-
-println = \x -> do
-  print x
-  print '\n'
-
 type T = U 32
 
 ~printx = println "x"
 
-operator + = add infixl 6.0
+qualifier Prelude = "lib/prelude.fort"
 

@@ -1,2 +1,4 @@
+
+qualifier Prelude = "lib/prelude.fort"
 export "foo" = bar `Pointer String`
-bar = Prim.alloca "asdf"
+bar = alloca "asdf"

@@ -1,8 +1,8 @@
-println = \a -> do
-  print a
-  print '\n'
 
-print = Prim.print
+qualifier Prelude = "lib/prelude.fort"
 
 main = do
  println "\\"
+ println "\xce\xbb" ;; lambda
+ println "\xf0\x9f\x98\x8a" ;; smiley
+

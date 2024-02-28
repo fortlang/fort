@@ -39,7 +39,7 @@ data Ty
   | XTyArray Position
   | XXTyArray Position (NonEmpty Integer)
   | XTySizes Position (NonEmpty Integer)
-  | XTyPrimCall Position AString
+  | XTyPrimCall Position Text
 
   -- these should remain
   | TyNone Position -- the type of 'undef' and looping tailrec calls
@@ -57,12 +57,47 @@ data Ty
 
   | TyEnum Position (Set UIdent)
   | TyString Position
-  | TyChar Position Sz
-  | TyFloat Position Sz
-  | TyInt Position Sz
-  | TyUInt Position Sz
+  | TyChar Position
+  | TyFloat Position SzFloat
+  | TyInt Position SzInt
+  | TyUInt Position SzUInt
   | TyBool Position
   deriving (Show, Data)
+
+class Bitsize a where
+  szBitsize :: a -> Integer
+
+data SzFloat = F32 | F64 deriving (Show, Eq, Data)
+data SzInt = I8 | I16 | I32 | I64 deriving (Show, Eq, Data)
+data SzUInt = U8 | U16 | U32 | U64 deriving (Show, Eq, Data)
+
+instance Bitsize SzFloat where
+  szBitsize x = case x of
+    F32 -> 32
+    F64 -> 64
+
+instance Pretty SzFloat where
+  pretty = pretty . szBitsize
+
+instance Bitsize SzInt where
+  szBitsize x = case x of
+    I8 -> 8
+    I16 -> 16
+    I32 -> 32
+    I64 -> 64
+
+instance Pretty SzInt where
+  pretty = pretty . szBitsize
+
+instance Bitsize SzUInt where
+  szBitsize x = case x of
+    U8 -> 8
+    U16 -> 16
+    U32 -> 32
+    U64 -> 64
+
+instance Pretty SzUInt where
+  pretty = pretty . szBitsize
 
 instance Eq Ty where
   x == y = case (x, y) of
@@ -80,7 +115,7 @@ instance Eq Ty where
     (TyPointer _ a, TyPointer _ b) -> a == b
     (TyEnum{}, TyEnum{}) -> True
     (TyString{}, TyString{}) -> True
-    (TyChar _ a, TyChar _ b) -> a == b
+    (TyChar{}, TyChar{}) -> True
     (TyFloat _ a, TyFloat _ b) -> a == b
     (TyInt _ a, TyInt _ b) -> a == b
     (TyUInt _ a, TyUInt _ b) -> a == b
@@ -114,7 +149,7 @@ instance Positioned Ty where
     TyPointer pos _ -> pos
     TyEnum pos _ -> pos
     TyString pos -> pos
-    TyChar pos _ -> pos
+    TyChar pos -> pos
     TyFloat pos _ -> pos
     TyInt pos _ -> pos
     TyUInt pos _ -> pos
@@ -153,7 +188,7 @@ instance Pretty Ty where
     TyEnum _ bs -> ppTyEnum bs
 
     TyString{} -> "String"
-    TyChar _ sz -> "C" <+> pretty sz
+    TyChar _ -> "C8"
     TyFloat _ sz -> "F" <+> pretty sz
     TyInt _ sz -> "I" <+> pretty sz
     TyUInt _ sz -> "U" <+> pretty sz
@@ -240,12 +275,27 @@ evalType env x = case x of
         evalType env'' t
 
       (XTyPointer pos, _) -> pure $ TyPointer pos tb
-      (XTyChar pos, XTySizes _ (sz :| [])) -> pure $ TyChar pos sz
-      (XTyFloat pos, XTySizes _ (sz :| [])) -> if
-        | sz `elem` [32, 64] -> pure $ TyFloat pos sz
-        | otherwise -> err101 "unsupported Float size" b sz
-      (XTyInt pos, XTySizes _ (sz :| [])) -> pure $ TyInt pos sz
-      (XTyUInt pos, XTySizes _ (sz :| [])) -> pure $ TyUInt pos sz
+      (XTyChar pos, XTySizes _ (sz :| [])) -> case sz of
+        8 -> pure $ TyChar pos
+        _ -> err101 "unsupported Char size" b sz
+      (XTyFloat pos, XTySizes _ (sz :| [])) -> case sz of
+        32 -> pure $ TyFloat pos F32
+        64 -> pure $ TyFloat pos F64
+        _ -> err101 "unsupported Float size" b sz
+
+      (XTyInt pos, XTySizes _ (sz :| [])) -> case sz of
+        8 -> pure $ TyInt pos I8
+        16 -> pure $ TyInt pos I16
+        32 -> pure $ TyInt pos I32
+        64 -> pure $ TyInt pos I64
+        _ -> err101 "unsupported Int size" b sz
+
+      (XTyUInt pos, XTySizes _ (sz :| [])) -> case sz of
+        8 -> pure $ TyUInt pos U8
+        16 -> pure $ TyUInt pos U16
+        32 -> pure $ TyUInt pos U32
+        64 -> pure $ TyUInt pos U64
+        _ -> err101 "unsupported UInt size" b sz
       (XXTyArray pos szs, _) -> pure $ foldr (TyArray pos) tb szs
       (XTyArray pos, XTySizes _ szs) -> pure $ XXTyArray pos szs
       _ -> err101 "unexpected type in type application" a ta
@@ -258,7 +308,7 @@ evalType env x = case x of
   TBool pos -> pure $ TyBool pos
   TString pos -> pure $ TyString pos
   TUnit pos -> pure $ TyUnit pos
-  TOpaque pos a -> pure $ TyOpaque pos $ valOf a
+  TOpaque pos a -> pure $ TyOpaque pos a
   TTuple pos bs -> TyTuple pos <$> mapM (evalType env) bs
   TRecord pos bs -> TyRecord pos . fromNEList <$> mapM (evalTField env) bs
   TSum pos bs -> TySum pos . fromNEList <$> mapM (evalTSum env) bs
@@ -268,7 +318,7 @@ evalType env x = case x of
   TInt pos -> pure $ XTyInt pos
   TUInt pos -> pure $ XTyUInt pos
   
-  TSize pos a -> pure $ XTySizes pos $ NE.singleton $ valOf a
+  TSize pos a -> pure $ XTySizes pos $ NE.singleton a
   TSizes pos bs -> XTySizes pos . concatNE <$> mapM (evalSize env) bs
 
 fromNEList :: Ord k => NonEmpty (k, a) -> Map k a
@@ -305,20 +355,26 @@ isRegisterTy x = case x of
       TyOpaque{} -> True
       _ -> isRegisterTy a
 
-checkExtern :: MonadIO m => Type -> Ty -> m ()
-checkExtern t t' = case t' of
-  _ | isRegisterTy t' -> pure ()
-  TyFun _ a b -> do
-    case a of
-      TyTuple _ cs | all isRegisterTy cs -> pure ()
-      TyUnit _ -> pure ()
-      _ | isRegisterTy a -> pure ()
-      _ -> err101 "unsupported extern input type" t a
-    case b of
-      TyUnit _ -> pure ()
-      _ | isRegisterTy b -> pure ()
-      _ -> err101 "unsupported extern output type" t b
-  _ -> err101 "unsupported extern type" t t'
+isExternArgTy :: Ty -> Bool
+isExternArgTy x = case x of
+  TyUnit{} -> True
+  TyTuple _ cs -> all isRegisterTy cs
+  _ -> isRegisterTy x
+
+isExternResultTy :: Ty -> Bool
+isExternResultTy x = case x of
+  TyUnit{} -> True
+  _ -> isRegisterTy x
+
+isExternTy :: Ty -> Bool
+isExternTy t = case t of
+  TyFun _ a b -> isExternArgTy a && isExternResultTy b
+  _ -> isRegisterTy t
+
+checkExtern :: MonadIO m => Ty -> m ()
+checkExtern t = if
+  | isExternTy t -> pure ()
+  | otherwise -> err100 "unsupported extern type" t
 
 isSwitchTy :: Ty -> Bool
 isSwitchTy x = case x of

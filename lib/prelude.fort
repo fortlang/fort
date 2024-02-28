@@ -91,7 +91,7 @@ bit-shift-r = curry Prim.shr
 
 append-build = Prim.append-build
 
-build = append-build "cbits/builtins.c"
+build = append-build "cbits/builtins.c Generated/instrs.ll"
 
 debug = \~a -> when Prim.slow-safe-build $ do
   print "DEBUG"
@@ -234,9 +234,12 @@ operator -= = dec infix -1.0
 fst = \(a, _) -> a
 snd = \(_, b) -> b
 
-memcpy = \a b c -> Prim.memcpy (cast a `Pointer Char`, cast b `Pointer Char`, c)
-memmove = \a b c -> Prim.memmove (cast a `Pointer Char`, cast b `Pointer Char`, c)
-memset = \a b c -> Prim.memset (cast a `Pointer Char`, b, c)
+c-memcpy = \a b c -> Prim.memcpy (a, b, c)
+memcpy = \a b c -> c-memcpy (cast a `Pointer Char`) (cast b `Pointer Char`) c
+c-memmove = \a b c -> Prim.memmove (a, b, c)
+memmove = \a b c -> c-memmove (cast a `Pointer Char`) (cast b `Pointer Char`) c
+c-memset = \a b c -> Prim.memset (a, b, c)
+memset = \a b c -> c-memset (cast a `Pointer Char`) b c
 
 c-puts = extern "puts" `Pointer Char -> Int`
 puts = \s -> c-puts (cast s `Pointer Char`)

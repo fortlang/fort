@@ -1,1 +1,3 @@
-main = Prim.alloca `Array 5 ()`
+
+qualifier Prelude = "lib/prelude.fort"
+main = alloca `Array 5 ()`

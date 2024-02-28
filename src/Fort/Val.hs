@@ -6,9 +6,13 @@ module Fort.Val (module Fort.Val)
 
 where
 
+import Data.Int
+import Data.Word
+import Foreign.Ptr
+import Fort.FunctorAST (pattern Char, pattern Int, pattern String)
 import Fort.Type hiding (M)
 import Fort.Utils
-import Fort.FunctorAST (pattern Char, pattern Int, pattern String)
+import System.Posix.DynamicLinker
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -28,11 +32,16 @@ initOpSt ds = OpSt
   , infixOps = Map.fromList [ (op, qnToLIdent qn) | InfixDecl _ op (InfixInfo _ qn _ _) <- ds ]
   }
 
-evalIf :: Val -> Block -> Block -> M Val
-evalIf v blkt blkf = do
-  (r, [rt, rf]) <- joinVals [blockResult blkt, blockResult blkf]
-  pushDecl $ VLet r $ VIf v (blkt{ blockResult = rt }) (blkf{ blockResult = rf })
-  pure r
+evalIf :: Val -> M Val -> M Val -> M Val
+evalIf v t f = case v of
+  VScalar _ (VBool _ True) -> t
+  VScalar _ (VBool _ False) -> f
+  _ -> do
+    blkt <- evalBlockM t
+    blkf <- evalBlockM f
+    (r, [rt, rf]) <- joinVals [blockResult blkt, blockResult blkf]
+    pushDecl $ VLet r $ VIf v (blkt{ blockResult = rt }) (blkf{ blockResult = rf })
+    pure r
 
 extendSum :: Map UIdent (Maybe Val) -> Map UIdent (Maybe Val) -> M (Map UIdent (Maybe Val))
 extendSum bs cs =
@@ -54,7 +63,7 @@ templateOfVals :: Val -> Val -> M Val
 templateOfVals x y = case (x, y) of
   (XVNone{}, _) -> pure y
   (_, XVNone{}) -> pure x
-  _ | x == y -> pure x
+  _ | compareVals x y == IsEqual -> pure x
   (VRecord pos bs, VRecord _ cs) -> VRecord pos <$> intersectionWithM templateOfVals bs cs
   (VArray pos t bs, VArray _ _ cs) | NE.length bs == NE.length cs -> VArray pos t . NE.fromList <$> zipWithM templateOfVals (toList bs) (toList cs)
   (VTuple pos bs, VTuple _ cs) | length2 bs == length2 cs -> VTuple pos . fromList2 <$> zipWithM templateOfVals (toList bs) (toList cs)
@@ -74,31 +83,56 @@ templateOfVals x y = case (x, y) of
   where
     posx = positionOf x
 
-instance Eq Val where
-  x == y = case (x, y) of
-    (VArray _ a bs, VArray _ c ds) -> a == c && bs == ds
-    (VRecord _ m, VRecord _ n) -> m == n
-    (VSum _ a m, VSum _ b n) -> a == b && m == n
-    (VTuple _ bs, VTuple _ cs) -> bs == cs
-    (VIndexed _ a b c, VIndexed _ d e f) -> a == d && b == e && c == f
-    (VPtr _ a b, VPtr _ c d) -> a == c && b == d
-    (VUnit _, VUnit _) -> True
-    (VScalar _ a,  VScalar _ b) -> a == b
-    _ -> False
+data Comparison
+  = IsEqual
+  | IsNotEqual
+  | IsUnknown
+  deriving (Show, Eq)
 
-instance Eq VScalar where
-  x == y = case (x, y) of
-    (VString _ a, VString _ b) -> a == b
-    (VChar _ a, VChar _ b) -> a == b
-    (VFloat _ a, VFloat _ b) -> a == b
-    (VInt _ a, VInt _ b) -> a == b
-    (VUInt _ a, VUInt _ b) -> a == b
-    (VBool _ a, VBool _ b) -> a == b
-    (VEnum _ a b, VEnum _ c d) -> a == c && b == d
-    (VUndef _ a, VUndef _ b) -> a == b
-    (VExtern _ a ta, VExtern _ b tb) -> a == b && ta == tb
-    (VRegister _ a, VRegister _ b) -> registerId a == registerId b
-    _ -> False
+compareVals :: Val -> Val -> Comparison
+compareVals x y = case (x, y) of
+  (VArray _ a bs, VArray _ c ds) | length bs == length ds ->
+    joinComparisons (compareEq a c : zipWith compareVals (toList bs) (toList ds))
+  (VRecord _ m, VRecord _ n) | isEqualByKeys m n -> joinComparisons $ Map.elems $ Map.intersectionWith compareVals m n
+  (VSum _ a m, VSum _ b n) | isEqualByKeys m n ->
+    joinComparisons (compareVals a b : Map.elems (Map.intersectionWith compareSumVals m n))
+  (VTuple _ bs, VTuple _ cs) | length bs == length cs ->
+    joinComparisons (fmap (uncurry compareVals) $ zip (toList bs) (toList cs))
+  (VIndexed _ a b c, VIndexed _ d e f) ->
+    joinComparisons [compareEq a d, compareEq b e, compareVals c f]
+  (VPtr _ a b, VPtr _ c d) -> joinComparisons [compareEq a c, compareVals b d]
+  (VUnit _, VUnit _) -> IsEqual
+  (VScalar _ a,  VScalar _ b) -> compareScalars a b
+  _ -> IsUnknown
+
+compareSumVals :: Maybe Val -> Maybe Val -> Comparison
+compareSumVals x y = case (x, y) of
+  (Nothing, Nothing) -> IsEqual
+  (Just a, Just b) -> compareVals a b
+  _ -> IsUnknown
+
+compareEq :: Eq a => a -> a -> Comparison
+compareEq x y = if x == y then IsEqual else IsNotEqual
+
+joinComparisons :: [Comparison] -> Comparison
+joinComparisons xs = if
+  | all (== IsEqual) xs -> IsEqual
+  | all (== IsNotEqual) xs -> IsNotEqual
+  | otherwise -> IsUnknown
+
+compareScalars :: VScalar -> VScalar -> Comparison
+compareScalars x y = case (x, y) of
+    (VString _ a, VString _ b) -> compareEq a b
+    (VChar _ a, VChar _ b) -> compareEq a b
+    (VFloat _ a, VFloat _ b) -> compareEq a b
+    (VInt _ a, VInt _ b) -> compareEq a b
+    (VUInt _ a, VUInt _ b) -> compareEq a b
+    (VBool _ a, VBool _ b) -> compareEq a b
+    (VEnum _ a b, VEnum _ c d) -> joinComparisons [ compareEq a c, compareEq b d ]
+    (VUndef _ a, VUndef _ b) -> compareEq a b
+    (VExtern _ a ta, VExtern _ b tb) -> joinComparisons [compareEq a b, compareEq ta tb]
+    (VRegister _ a, VRegister _ b) -> compareEq (registerId a) (registerId b)
+    _ -> IsUnknown
 
 instantiateWithFreshRegs :: VScalar -> M VScalar
 instantiateWithFreshRegs x = case x of
@@ -157,20 +191,26 @@ evalCon c = do
       pure i
   pure $ VEnum (positionOf c) c i
 
-freshRegister :: Ty -> M Register
-freshRegister t = if
+freshRegister :: Bool -> Ty -> M Register
+freshRegister isGlobal t = if
   | isRegisterTy t -> do
     i <- gets nextRegisterId
-    let r = Register{ registerTy = t, registerId = i }
+    let r = Register{ registerIsGlobal = isGlobal, registerTy = t, registerId = i }
     modify' $ \st -> st{ nextRegisterId = i + 1 }
     pure r
   | otherwise -> unreachable101 "unable to create register of type" t noTCHint
 
-freshRegisterScalar :: Ty -> M VScalar
-freshRegisterScalar t = VRegister (positionOf t) <$> freshRegister t
+freshRegisterScalar ::Ty -> M VScalar
+freshRegisterScalar t = VRegister (positionOf t) <$> freshRegister False t
 
 freshRegisterVal :: Ty -> M Val
 freshRegisterVal t = VScalar (positionOf t) <$> freshRegisterScalar t
+
+freshGlobalScalar ::Ty -> M VScalar
+freshGlobalScalar t = VRegister (positionOf t) <$> freshRegister True t
+
+freshGlobalVal :: Ty -> M Val
+freshGlobalVal t = VScalar (positionOf t) <$> freshGlobalScalar t
 
 freshVal :: Ty -> M Val
 freshVal = freshValF id
@@ -195,7 +235,7 @@ type M a = StateT St (StateT TCSt (StateT OpSt (StateT TySt IO))) a
 mkTyEnum :: Position -> [UIdent] -> Ty
 mkTyEnum pos = TyEnum pos . Set.fromList
 
-type Prog = Map AString Func
+type Prog = Map Text Func
 
 data Func = Func{ retTy :: Ty, arg :: Val, body :: Block }
   deriving (Show, Data)
@@ -218,10 +258,12 @@ data St = St
   , nextRegisterId :: RegisterId
   , decls :: [VDecl]
   , tailcalls :: [(TailCallId, Val)]
-  , calls :: Map AString (Val -> M Val)
+  , calls :: Map Text (Val -> M Val)
   , nextTailCallId :: Integer
   , isSlowSafeBuild :: Bool
   , buildCmd :: [Text]
+  , isPure :: Bool
+  , mDynLib :: Maybe DL
   }
 
 initSt :: Bool -> St
@@ -235,6 +277,8 @@ initSt b = St
   , nextTailCallId = 0
   , isSlowSafeBuild = b
   , buildCmd = mempty
+  , isPure = False
+  , mDynLib = Nothing
   }
 
 data Val
@@ -243,7 +287,7 @@ data Val
   | XVDelay Position Env Exp -- think of this as a rewrite from v to \() -> v so it won't evaluate immediately and can be used repeatedly (i.e. to repeat side-effecting calls)
   | XVTailRecDecls Position Env (Map LIdent TailRecDecl) LIdent
   | XVTailCall Position TailCallId
-  | XVCall Position AString
+  | XVCall Position Text
   | XVNone Position -- for tail calls
   -- at then end, only these remain
   | VType Position Ty
@@ -286,15 +330,54 @@ data VScalar
   -- ^ removed
   | VString Position Text
   | VChar Position Char
-  | VFloat Position Double
-  | VInt Position Integer
-  | VUInt Position Integer
+  | VFloat Position VFloat
+  | VInt Position VInt
+  | VUInt Position VUInt
   | VBool Position Bool
   | VEnum Position UIdent Integer
   | VUndef Position Ty
-  | VExtern Position AString Ty
+  | VExtern Position Text Ty
   | VRegister Position Register
+  | VPointer Position Ty (Ptr ())
   deriving (Show, Data)
+
+data VFloat
+  = VFloat32 Float
+  | VFloat64 Double
+  deriving (Show, Data, Eq)
+
+data VUInt
+  = VUInt8 Word8
+  | VUInt16 Word16
+  | VUInt32 Word32
+  | VUInt64 Word64
+  deriving (Show, Data, Eq)
+
+data VInt
+  = VInt8 Int8
+  | VInt16 Int16
+  | VInt32 Int32
+  | VInt64 Int64
+  deriving (Show, Data, Eq)
+
+instance Pretty VFloat where
+  pretty x = case x of
+    VFloat32 a -> pretty a
+    VFloat64 a -> pretty a
+
+instance Pretty VInt where
+  pretty x = case x of
+    VInt8 a -> pretty a
+    VInt16 a -> pretty a
+    VInt32 a -> pretty a
+    VInt64 a -> pretty a
+
+instance Pretty VUInt where
+  pretty x = case x of
+    VUInt8 a -> pretty a
+    VUInt16 a -> pretty a
+    VUInt32 a -> pretty a
+    VUInt64 a -> pretty a
 
 instance Positioned VScalar where
   positionOf x = case x of
@@ -309,9 +392,10 @@ instance Positioned VScalar where
     VUndef pos _ -> pos
     VExtern pos _ _ -> pos
     VRegister pos _ -> pos
+    VPointer pos _ _ -> pos
 
 data VStmt
-  = VCall AString Val
+  = VCall Text Val
   | VSwitch Val Block [Alt]
   | VIf Val Block Block
   | VCallTailCall TailCallId Val
@@ -363,18 +447,21 @@ instance Pretty Block where
 
 type TagId = Integer
 
-newtype RegisterId = RegisterId{ unRegisterId :: Int } deriving (Show, Eq, Ord, Num, Data)
+newtype RegisterId = RegisterId{ unRegisterId :: Int }
+  deriving (Show, Eq, Ord, Num, Data)
 
 instance Pretty RegisterId where
-  pretty x = "%r" <> pretty (unRegisterId x)
+  pretty = pretty . unRegisterId
 
-data Register = Register{ registerTy :: Ty, registerId :: RegisterId } deriving (Show, Data)
+data Register = Register{ registerIsGlobal :: Bool, registerTy :: Ty, registerId :: RegisterId } deriving (Show, Data)
 
 instance Typed Register where
   typeOf = registerTy
 
 instance Pretty Register where
-  pretty x = pretty (registerId x) <+> ":" <+> pretty (typeOf x)
+  pretty x = d <> pretty (registerId x) <+> ":" <+> pretty (typeOf x)
+    where
+      d = if registerIsGlobal x then "@" else "%"
 
 instance Pretty Val where
   pretty x = case x of
@@ -402,11 +489,12 @@ instance Pretty VScalar where
     VInt _ a -> pretty a
     VUInt _ a -> pretty a
     VBool _ a -> pretty a
-    VUndef _ t -> "<undef :" <+> pretty t <> ">"
+    VUndef _ t -> "<undef:" <+> pretty t <> ">"
     VEnum _ a _ -> "tag" <+> pretty a
     VExtern _ nm _ -> "<extern" <+> pretty nm <+> ">"
     VRegister _ r -> pretty r
     XVFreshRegVal _ t -> "<freshreg :" <+> pretty t <+> ">"
+    VPointer _ _ p -> "<pointer:" <+> pretty (p `minusPtr` nullPtr) <+> ">"
 
 instance Typed Val where
   typeOf x = case x of
@@ -421,29 +509,49 @@ instance Typed Val where
     VScalar _ a -> typeOf a
     _ -> unreachable "unable to take type of value" x
 
+intSz :: VInt -> SzInt
+intSz i = case i of
+  VInt8 _ -> I8
+  VInt16 _ -> I16
+  VInt32 _ -> I32
+  VInt64 _ -> I64
+
+uintSz :: VUInt -> SzUInt
+uintSz i = case i of
+  VUInt8 _ -> U8
+  VUInt16 _ -> U16
+  VUInt32 _ -> U32
+  VUInt64 _ -> U64
+
+floatSz :: VFloat -> SzFloat
+floatSz i = case i of
+  VFloat32 _ -> F32
+  VFloat64 _ -> F64 
+
 instance Typed VScalar where
   typeOf x = case x of
     VString pos _ -> TyString pos
-    VChar pos _ -> TyChar pos 8
-    VFloat pos _ -> TyFloat pos 64
-    VInt pos _ -> TyInt pos 32
-    VUInt pos _ -> TyUInt pos 32
+    VChar pos _ -> TyChar pos
+    VFloat pos a -> TyFloat pos $ floatSz a
+    VInt pos a -> TyInt pos $ intSz a
+    VUInt pos a -> TyUInt pos $ uintSz a
     VBool pos _ -> TyBool pos
     VEnum pos c _ -> mkTyEnum pos [c]
     VRegister _ r -> typeOf r
     VExtern _ _ t -> t
     VUndef _ t -> t
+    VPointer _ t _ -> t
     XVFreshRegVal _ t -> t
 
 scalarToVScalar :: Scalar -> VScalar
 scalarToVScalar x = case x of
   Char pos t -> VChar pos $ read $ Text.unpack t
-  Double pos v -> VFloat pos $ valOf v
-  Int pos t -> VInt pos $ read $ removeUnderscores $ Text.unpack t
-  String pos v -> VString pos $ valOf v
-  UInt pos v -> case v of
-    Dec{} -> VInt pos $ valOf v
-    _ -> VUInt pos $ valOf v
+  String pos v -> VString pos v
+
+  Double pos v -> VFloat pos $ VFloat64 v
+  Int pos i -> VInt pos $ VInt32 $ fromInteger i
+  UInt pos i -> VUInt pos $ VUInt32 $ fromInteger i 
+
   ATrue pos -> VBool pos True
   AFalse pos -> VBool pos False
 

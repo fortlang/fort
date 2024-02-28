@@ -1,1 +1,4 @@
-main = Prim.assert ("user assert", True)
+
+qualifier Prelude = "lib/prelude.fort"
+
+main = assert True "user assert"

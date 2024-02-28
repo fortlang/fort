@@ -1,15 +1,9 @@
-operator # = sub infixl 2.0
-operator $ = sub infixr 2.0
-operator ! = sub infixl 1.0
 
-sub = \x y -> Prim.sub (x, y)
+qualifier Prelude = "lib/prelude.fort"
+
+operator ## = subtract infixl 2.0
+operator $# = subtract infixr 2.0
+operator !# = subtract infixl 1.0
 
 main = do
-  println (0 # 1 $ 2 ! 3)
-
-println = \x -> do
-  Prim.print x
-  Prim.print '\n'
-
-
-
+  println (0 ## 1 $# 2 !# 3)

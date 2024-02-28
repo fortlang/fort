@@ -1,2 +1,6 @@
-main = Prim.eq ({ x = 24 }, { x = 'c' })
+main = do
+  _ = equal { x = 24 } { x = 'c' }
+  ()
+
+qualifier Prelude = "lib/prelude.fort"
 

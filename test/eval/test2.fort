@@ -1,7 +1,6 @@
 
-println = \a -> do
-  print a
-  print "\n"
+qualifier Prelude = "lib/prelude.fort"
+
 
 main = do
   println 42
@@ -29,5 +28,3 @@ main = do
   0
 
 test = True
-
-print = Prim.print

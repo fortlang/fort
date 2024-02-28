@@ -1,3 +1,6 @@
-inc = \x -> Prim.add (x, 1)
+inc = \x -> add x 1
 
 export "foo" = inc `I 32 -> I 32`
+
+qualifier Prelude = "lib/prelude.fort"
+

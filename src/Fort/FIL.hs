@@ -10,7 +10,7 @@ where
 
 import Data.Bifunctor
 import Fort.Utils hiding (If, Extern, UInt, Let, TailRecDecls, Decl, Scalar, Unit, Stmt)
-import Fort.Val (RegisterId, VScalar(..), VStmt(..), VDecl(..), TailCallId(..))
+import Fort.Val (RegisterId, VScalar(..), VStmt(..), VDecl(..), TailCallId(..), VInt(..), VFloat(..), VUInt(..), floatSz, intSz, uintSz)
 import qualified Data.Map as Map
 import qualified Fort.Type as Type
 import qualified Fort.Val as Val
@@ -18,7 +18,7 @@ import qualified Fort.Val as Val
 filModules :: [(FilePath, Val.Prog)] -> [(FilePath, Prog)]
 filModules xs = [ (fn, fmap filFunc prg) | (fn, prg) <- xs ]
 
-type Prog = Map AString Func
+type Prog = Map Text Func
 
 filFunc :: Val.Func -> Func
 filFunc x = Func
@@ -53,7 +53,7 @@ data Decl
   deriving (Show, Data)
 
 data Stmt
-  = Call AString [Val]
+  = Call Text [Val]
   | Switch Val Block [Alt]
   | If Val Block Block
   | CallTailCall TailCallId [Val]
@@ -82,7 +82,7 @@ instance Eq Val where
     (Scalar _ a, Scalar _ b) -> a == b
     _ -> False
 
-data Register = Reg{ registerTy :: Ty, registerId :: RegisterId } deriving (Show, Data)
+data Register = Reg{ registerIsGlobal :: Bool, registerTy :: Ty, registerId :: RegisterId } deriving (Show, Data)
 
 instance Eq Register where
   x == y = registerId x == registerId y
@@ -93,10 +93,10 @@ data Ty
   | TyPointer Position Ty
   | TyEnum Position
   | TyString Position
-  | TyChar Position Sz
-  | TyFloat Position Sz
-  | TyInt Position Sz
-  | TyUInt Position Sz
+  | TyChar Position
+  | TyFloat Position Type.SzFloat
+  | TyInt Position Type.SzInt
+  | TyUInt Position Type.SzUInt
   | TyBool Position
   | TyArray Position Sz Ty
   deriving (Show, Data)
@@ -108,7 +108,7 @@ instance Eq Ty where
     (TyPointer _ a, TyPointer _ b) -> a == b
     (TyEnum _, TyEnum _) -> True
     (TyString _, TyString _) -> True
-    (TyChar _ a, TyChar _ b) -> a == b
+    (TyChar{}, TyChar{}) -> True
     (TyFloat _ a, TyFloat _ b) -> a == b
     (TyInt _ a, TyInt _ b) -> a == b
     (TyUInt _ a, TyUInt _ b) -> a == b
@@ -123,7 +123,7 @@ instance Positioned Ty where
     TyPointer pos _ -> pos
     TyEnum pos -> pos
     TyString pos -> pos
-    TyChar pos _ -> pos
+    TyChar pos -> pos
     TyFloat pos _ -> pos
     TyInt pos _ -> pos
     TyUInt pos _ -> pos
@@ -135,10 +135,10 @@ bitsize x = case x of
   TyPointer _ _ -> bitsizePointer
   TyEnum _ -> 32
   TyString _ -> bitsizePointer
-  TyChar _ a -> a
-  TyFloat _ a -> a
-  TyInt _ a -> a
-  TyUInt _ a -> a
+  TyChar _ -> 8
+  TyFloat _ sz -> Type.szBitsize sz
+  TyInt _ sz -> Type.szBitsize sz
+  TyUInt _ sz -> Type.szBitsize sz
   TyBool _ -> 1
   _ -> unreachable "unexpected type as input to bitsize" x
 
@@ -161,13 +161,13 @@ instance TypeOf Val where
 data Scalar
   = String Position Text
   | Char Position Char
-  | Float Position Double
-  | Int Position Integer
-  | UInt Position Integer
+  | Float Position VFloat
+  | Int Position VInt
+  | UInt Position VUInt
   | Bool Position Bool
   | Enum Position UIdent Integer
   | Undef Position Ty
-  | Extern Position AString Ty
+  | Extern Position Text Ty
   | Register Position Register
   deriving (Show, Data)
 
@@ -214,10 +214,10 @@ instance Pretty Scalar where
 instance TypeOf Scalar where
   typeOf x = case x of
     String pos _ -> TyString pos
-    Char pos _ -> TyChar pos 8
-    Float pos _ -> TyFloat pos 64
-    Int pos _ -> TyInt pos 32
-    UInt pos _ -> TyUInt pos 32
+    Char pos _ -> TyChar pos
+    Float pos a -> TyFloat pos $ floatSz a
+    Int pos a -> TyInt pos $ intSz a
+    UInt pos a -> TyUInt pos $ uintSz a
     Bool pos _ -> TyBool pos
     Enum pos _ _ -> TyEnum pos
     Undef _ t -> t
@@ -257,7 +257,7 @@ fromBlock x = go mempty (fromDecl <$> Val.blockDecls x)
       , blockResult = Cont $ fromTuple $ Val.blockResult x
       }
     go rs (d : ds) = case d of
-      Let _ (Call nm [v]) | textOf nm == "Prim.exit" -> Block
+      Let _ (Call nm [v]) | nm == "Prim.exit" -> Block
         { blockDecls = reverse rs
         , blockResult = Exit v
         }
@@ -265,7 +265,10 @@ fromBlock x = go mempty (fromDecl <$> Val.blockDecls x)
 
 fromRegister :: Val.Register -> Register
 fromRegister x = Reg
-  { registerTy = fromTy $ Val.registerTy x, registerId = Val.registerId x }
+  { registerTy = fromTy $ Val.registerTy x
+  , registerId = Val.registerId x
+  , registerIsGlobal = Val.registerIsGlobal x
+  }
 
 fromVal :: Val.Val -> Val
 fromVal x = case x of
@@ -295,7 +298,7 @@ fromTy x = case x of
   Type.TyPointer pos ty -> TyPointer pos (fromTy ty)
   Type.TyEnum pos _ -> TyEnum pos
   Type.TyString pos -> TyString pos
-  Type.TyChar pos sz -> TyChar pos sz
+  Type.TyChar pos -> TyChar pos
   Type.TyFloat pos sz -> TyFloat pos sz
   Type.TyInt pos sz -> TyInt pos sz
   Type.TyUInt pos sz -> TyUInt pos sz
@@ -371,7 +374,7 @@ instance Pretty Ty where
     TyArray _ sz t -> "Array" <+> pretty sz <+> f t
     TyEnum _ -> "Enum"
     TyString _ -> "String"
-    TyChar _ sz -> "C" <> pretty sz
+    TyChar _ -> "C8"
     TyFloat _ sz -> "F" <> pretty sz
     TyInt _ sz -> "I" <> pretty sz
     TyUInt _ sz -> "U" <> pretty sz

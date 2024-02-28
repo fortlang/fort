@@ -1,2 +1,6 @@
-qualifier Prim = "test/tcerr/test0.fort"
-main = ()
+
+qualifier Prelude = "lib/prelude.fort"
+
+qualifier Foo = "test/tcerr/test0.fort"
+
+main = Foo.bar

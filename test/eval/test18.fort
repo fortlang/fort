@@ -1,25 +1,9 @@
 
-println = \x -> do
-  Prim.print x
-  Prim.print '\n'
-
-alloca = Prim.alloca
-
-curry = \f a b -> f (a, b)
-
-load = Prim.load
-store = curry Prim.store
-
-index = curry Prim.index
-
+qualifier Prelude = "lib/prelude.fort"
 
 type T = Record
   y: C 8
   z: I 32
-
-operator @ = load
-operator := = store infix -1.0
-operator # = index infixl 9.0
 
 main = do
   ;; array of records

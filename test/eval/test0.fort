@@ -1,7 +1,5 @@
-otherwise = True
+qualifier Prelude = "lib/prelude.fort"
 
-operator > = greater-than infix 4.0
-operator + = add infixl 6.0
 myloop = \i0 -> do
   c = 42
   tailrec
@@ -11,11 +9,6 @@ myloop = \i0 -> do
        print c
        go (i + 1)
   go i0
-
-print = Prim.print
-
-greater-than = \x y -> Prim.gt (x, y)
-add = \x y -> Prim.add (x, y)
 
 main = do
   ac = myloop 0

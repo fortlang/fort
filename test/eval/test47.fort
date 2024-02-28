@@ -1,8 +1,7 @@
-println = \a -> do
-  Prim.print a
-  Prim.print '\n'
+
+qualifier Prelude = "lib/prelude.fort"
 
 main = do
-  println (Prim.countof `Array 5 (C 8)`)
-  println (Prim.countof ['a','b','c'])
-  println (Prim.countof "blah")
+  println (countof `Array 5 (C 8)`)
+  println (countof ['a','b','c'])
+  println (countof "blah")

@@ -54,7 +54,7 @@ infixBindings (Module _ ds) = List.concatMap f ds
   where
     f x = case x of
       InfixDecl _ op (InfixInfo _ _ fx pr) ->
-        [(textOf op, (nameOf op, (fx, valOf pr)))]
+        [(textOf op, (nameOf op, (fx, pr)))]
       _ -> []
 
 precModule :: (FilePath, Module) -> M (FilePath, Module)

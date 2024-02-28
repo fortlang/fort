@@ -7,6 +7,7 @@ where
 import Fort.FIL (Register(..), RegisterId(..), Scalar(..), Val(..), Ty(..), TailCallId(..))
 import Fort.Utils hiding (Stmt, Extern, UInt, Scalar, Unit)
 import Numeric
+import Fort.Type (SzFloat(..), SzUInt(..))
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Text as Text
@@ -52,22 +53,30 @@ llvmProg x = do
   where
     nms = Map.keys x
     bt = if
-      | "main" `elem` fmap textOf nms -> Exe
+      | "main" `elem` nms -> Exe
       | Map.null x -> NoCode
       | otherwise -> Obj
 
-llvmDeclares :: [AString] -> [(Text, Int)] -> [Block] -> Doc ann
+llvmDeclares :: [Text] -> [(Text, Int)] -> [Block] -> Doc ann
 llvmDeclares nms strs m = vcat
   [ vcat (("declare" <+>) <$> calls nms m)
-  , vcat (("declare" <+>) <$> intrinsics m)
-  , vcat [ llvm nm <+> "= external global" <+> llvm ty | (nm, TyPointer _ ty) <- externs m ]
+  , vcat [ globalName nm <+> "= external global" <+> llvm (unTyPointer ty) | (nm, ty) <- externs m ]
+  , vcat [ llvm reg <+> "= global" <+> llvm (unTyPointer $ registerTy reg) <+> "zeroinitializer" | reg <- globals m ]
   , vcat [ "@.str." <> pretty i <+> "= private unnamed_addr constant" <+> llvmStringConst s | (s, i) <- strs ]
   ]
 
-llvmDefine :: [(Text, Int)] -> ((AString, FIL.Func), Map BlockId Block) -> Doc ann
+unTyPointer :: Ty -> Ty
+unTyPointer x = case x of
+  TyPointer _ t -> t
+  _ -> error "BAL: undefined"
+
+globals :: [Block] -> [Register]
+globals m = List.nubBy (\a b -> registerId a == registerId b) [ reg | Register _ reg <- universeBi m, registerIsGlobal reg ]
+
+llvmDefine :: [(Text, Int)] -> ((Text, FIL.Func), Map BlockId Block) -> Doc ann
 llvmDefine strs0 ((nm, x), blks) = do
   vcat
-    [ "define" <+> llvm (FIL.retTy x) <+> "@" <> pretty nm <> llvmArgs (FIL.args x) <> " {"
+    [ "define" <+> llvm (FIL.retTy x) <+> globalName nm <> llvmArgs (FIL.args x) <> " {"
     , vcat [ pretty (llvmStringConstName i) <+> "=" <+> "bitcast" <+> llvmStringConstType s <> "*" <+> "@.str." <> pretty i <+> "to i8*" | (s, i) <- strs ]
     , "br label %lbl_0"
     , vcat [ nest 2 $ vsep [llvmBlockId lbl <> ":", llvm blk] | (lbl, blk) <- sortByFst $ Map.toList $ stringsToStringIds (Map.fromList strs) blks ]
@@ -75,6 +84,9 @@ llvmDefine strs0 ((nm, x), blks) = do
     ]
   where
     strs = filter (flip elem (strings $ Map.elems blks) . fst) strs0
+
+globalName :: Text -> Doc ann
+globalName nm = "@" <> pretty nm
 
 llvmFuncBlocks :: FIL.Func -> M (Map BlockId Block)
 llvmFuncBlocks x = do
@@ -95,21 +107,16 @@ llvmBlock targ bid blk = do
       pushPhis targ rs
       pushTerminator $ Br targ
 
-calls :: [AString] -> [Block] -> [Doc ann]
-calls nms m = [ llvm rt <+> llvm nm <+> tupled (fmap llvm ts) | (rt, nm, ts) <- xs ]
+calls :: [Text] -> [Block] -> [Doc ann]
+calls nms m = [ llvm rt <+> globalName nm <+> tupled (fmap llvm ts) | (rt, nm, ts) <- xs ]
   where
-    xs = List.nub [ (FIL.typeOf r, nm, filter (not . FIL.isTyUnit) $ fmap FIL.typeOf vs) | Instr r (Call nm) vs <- universeBi m, nm `List.notElem` nms ]
+    xs = List.nubBy (\(_, a, _) (_, b, _) -> a == b) [ (FIL.typeOf r, nm, filter (not . FIL.isTyUnit) $ fmap FIL.typeOf vs) | Instr r nm vs <- universeBi m, nm `List.notElem` nms ]
 
 strings :: [Block] -> [Text]
 strings m = List.nub [ s | String _ s <- universeBi m ]
 
-externs :: [Block] -> [(AString, Ty)]
+externs :: [Block] -> [(Text, Ty)]
 externs m = [ (nm, ty) | Extern _ nm ty <- List.nub (universeBi m) ]
-
-intrinsics :: [Block] -> [Doc ann]
-intrinsics m = [ llvm rt <+> intrinsicName nm rt ts <+> tupled (fmap llvm ts) | (rt, nm, ts) <- xs ]
-  where
-    xs = List.nub [ (FIL.typeOf r, nm, fmap FIL.typeOf vs) | Instr r (Intrinsic nm) vs <- universeBi m ]
 
 llvmArgs :: [FIL.Val] -> Doc ann
 llvmArgs = tupled . fmap llvmTyped
@@ -184,89 +191,6 @@ llvmTailCallBlocks retto nm = do
 llvmDecls :: [FIL.Decl] -> M ()
 llvmDecls = mapM_ llvmDecl
 
-data Instr
-  = Call AString
-  | Intrinsic Intrinsic
-  | Equ
-  | Neq
-  | Add
-  | Sub
-  | Mul
-  | Div
-  | Rem
-  | Gt
-  | Lt
-  | Gte
-  | Lte
-  | Shl
-  | Shr
-  | Or
-  | And
-  | Xor
-  | Load
-  | Index
-  | Store
-  | Neg
-  | Alloca
-  | Cast
-  deriving (Show, Data)
-
-data Intrinsic
-  = Abs
-  | Sqrt
-  | Sin
-  | Cos
-  | Floor
-  | Ceil
-  | Truncate
-  | Round
-  | Memset
-  | Memmove
-  | Memcpy
-  deriving (Show, Data, Eq)
-
-instance Pretty Instr where
-  pretty x = case x of
-    Call nm -> "Call" <+> pretty nm
-    _ -> pretty $ show x
-
-astringToInstr :: AString -> Instr
-astringToInstr nm = case textOf nm of
-  "Prim.eq" -> Equ
-  "Prim.ne" -> Neq
-  "Prim.add" -> Add
-  "Prim.sub" -> Sub
-  "Prim.mul" -> Mul
-  "Prim.div" -> Div
-  "Prim.rem" -> Rem
-  "Prim.gt" -> Gt
-  "Prim.lt" -> Lt
-  "Prim.gte" -> Gte
-  "Prim.lte" -> Lte
-  "Prim.shl" -> Shl
-  "Prim.shr" -> Shr
-  "Prim.or" -> Or
-  "Prim.and" -> And
-  "Prim.xor" -> Xor
-  "Prim.load" -> Load
-  "Prim.index" -> Index
-  "Prim.store" -> Store
-  "Prim.neg" -> Neg
-  "Prim.alloca" -> Alloca
-  "Prim.cast" -> Cast
-  "Prim.abs" -> Intrinsic Abs
-  "Prim.sqrt" -> Intrinsic Sqrt
-  "Prim.sin" -> Intrinsic Sin
-  "Prim.cos" -> Intrinsic Cos
-  "Prim.floor" -> Intrinsic Floor
-  "Prim.ceil" -> Intrinsic Ceil
-  "Prim.truncate" -> Intrinsic Truncate
-  "Prim.round" -> Intrinsic Round
-  "Prim.memset" -> Intrinsic Memset
-  "Prim.memmove" -> Intrinsic Memmove
-  "Prim.memcpy" -> Intrinsic Memcpy
-  _ -> Call nm
-
 initPhis :: BlockId -> [Val] -> M ()
 initPhis bid vs = modifyBlock bid $ \blk -> blk{ blockPhis = fmap (,mempty) vs }
 
@@ -274,7 +198,7 @@ llvmDecl :: FIL.Decl -> M ()
 llvmDecl x = case x of
   FIL.Let rs stmt -> case stmt of
     FIL.Call nm vs -> case rs of
-      [r] -> modifyCurrentBlock $ \blk -> blk{ blockStmts = Instr r (astringToInstr nm) vs : blockStmts blk }
+      [r] -> modifyCurrentBlock $ \blk -> blk{ blockStmts = Instr r nm vs : blockStmts blk }
       _ -> unreachable001 "llvmDecl: multiple result values in call" x
 
     FIL.If a b c -> do
@@ -393,134 +317,8 @@ instance LLVM Stmt where
           TyUnit pos -> llvmRHS (TyUnit pos) i vs
           t -> llvm r <+> "=" <+> llvmRHS t i vs
 
-llvmRHS :: Ty -> Instr -> [Val] -> Doc ann
-llvmRHS t i vs = cmd
-  where
-    cmd = case i of
-      Equ -> if
-        | FIL.isTyFloat ta -> instr "fcmp ueq"
-        | otherwise -> instr "icmp eq"
-      Neq -> if
-        | FIL.isTyFloat ta -> instr "fcmp une"
-        | otherwise -> instr "icmp ne"
-      Add -> if
-        | FIL.isTyFloat ta -> instr "fadd"
-        | otherwise -> instr "add"
-      Sub -> if
-        | FIL.isTyFloat ta -> instr "fsub"
-        | otherwise -> instr "sub"
-      Mul -> if
-        | FIL.isTyFloat ta -> instr "fmul"
-        | otherwise -> instr "mul"
-      Div -> if
-        | FIL.isTyFloat ta -> instr "fdiv"
-        | FIL.isTyInt ta -> instr "sdiv"
-        | otherwise -> instr "udiv"
-      Rem -> if
-        | FIL.isTyFloat ta -> instr "frem"
-        | FIL.isTyInt ta -> instr "srem"
-        | otherwise -> instr "urem"
-      Gt -> if
-        | FIL.isTyFloat ta -> instr "fcmp ugt"
-        | FIL.isTyInt ta -> instr "icmp sgt"
-        | otherwise -> instr "icmp ugt"
-      Lt -> if
-        | FIL.isTyFloat ta -> instr "fcmp ult"
-        | FIL.isTyInt ta -> instr "icmp slt"
-        | otherwise -> instr "icmp ult"
-      Gte -> if
-        | FIL.isTyFloat ta -> instr "fcmp uge"
-        | FIL.isTyInt ta -> instr "icmp sge"
-        | otherwise -> instr "icmp uge"
-      Lte -> if
-        | FIL.isTyFloat ta -> instr "fcmp ule"
-        | FIL.isTyInt ta -> instr "icmp sle"
-        | otherwise -> instr "icmp ule"
-      Shl -> instr "shl"
-      Shr -> if
-        | FIL.isTyInt ta -> instr "ashr"
-        | otherwise -> instr "lshr"
-      Or -> instr "or"
-      And -> instr "and"
-      Xor -> instr "xor"
-      Alloca -> "alloca" <+> llvm a
-      Load -> "load" <+> llvm t <> "," <+> llvm ta <+> llvm a
-      Index -> case ta of
-        TyPointer _ t' -> "getelementptr inbounds" <+> llvm t' <> "," <+> llvm ta <+> llvm a
-          <> "," <+> llvm tb <+> "0"
-          <> "," <+> llvm tb <+> llvm b
-        _ -> unreachable "llvmRHS: expected index to return a pointer value" t
-      Store -> "store" <+> llvm tb <+> llvm b <> "," <+> llvm ta <+> llvm a
-
-      Neg -> instr0 "fneg"
-      Cast -> if
-        | FIL.isTyFloat ta && FIL.isUIntTy bt -> tyinstr "fptoui"
-        | FIL.isTyFloat ta && FIL.isTyInt bt -> tyinstr "fptosi"
-
-        | FIL.isUIntTy ta && FIL.isTyFloat bt -> tyinstr "uitofp"
-        | FIL.isTyInt ta && FIL.isTyFloat bt -> tyinstr "sitofp"
-
-        | FIL.isTyPointer ta && FIL.isIntTy bt -> tyinstr "ptrtoint"
-        | FIL.isIntTy ta && FIL.isTyPointer bt -> tyinstr "inttoptr"
-
-        | FIL.bitsize ta > FIL.bitsize bt && FIL.isTyFloat ta -> tyinstr "fptrunc"
-        | FIL.bitsize ta > FIL.bitsize bt -> tyinstr "trunc"
-
-        | FIL.bitsize ta < FIL.bitsize bt && FIL.isTyFloat ta -> tyinstr "fpext"
-        | FIL.bitsize ta < FIL.bitsize bt && FIL.isUIntTy ta -> tyinstr "zext"
-        | FIL.bitsize ta < FIL.bitsize bt && FIL.isTyInt ta -> tyinstr "sext"
-
-        | FIL.bitsize ta == FIL.bitsize bt -> tyinstr "bitcast"
-
-        | otherwise -> unreachable "llvmRHS: unexpected types to 'cast'" (ta, bt)
-
-      Intrinsic c -> "call" <+> llvm t <+> intrinsicName c t (fmap FIL.typeOf vs) <> tupled (fmap llvmTyped vs)
-      Call nm -> "call" <+> llvm t <+> llvm nm <+> tupled [ llvmTyped v | v <- vs, not $ FIL.isTyUnit $ FIL.typeOf v ]
-    instr s = s <+> llvm ta <+> llvm a <> "," <+> llvm b
-    instr0 s = s <+> llvm t <+> llvm a
-    tyinstr s = s <+> llvm ta <+> llvm a <+> "to" <+> llvm t
-    ta = FIL.typeOf a
-    tb = FIL.typeOf b
-    bt = case b of
-      Type _ ty -> ty
-      _ -> unreachable "llvmRHS: expected type value as second argument" b
-    a = case vs of
-      va : _ -> va
-      _ -> unreachable "llvmRHS: expected at least one argument to instruction" vs
-    b = case vs of
-      _ : vb : _ -> vb
-      _ -> unreachable "llvmRHS: expected at least two arguments to instruction" vs
-
-intrinsicName :: Intrinsic -> Ty -> [Ty] -> Doc ann
-intrinsicName x rt ts = "@llvm." <> nm <> extra <> "." <> llvm t
-  where
-    extra = case x of
-      Memset -> ".p0" -- BAL: why is inline not working here? (reproduce by running 'opt' on the generated llvm)
-      Memmove -> ".inline.p0.p0"
-      Memcpy -> ".inline.p0.p0"
-      _ -> mempty
-    t = case x of
-      Memset -> t2
-      Memmove -> t2
-      Memcpy -> t2
-      _ -> rt
-    t2 = case ts of
-      _ : _ : a : _ -> a
-      _ -> unreachable "expected 3 arguments to memset/memmove/memcpy" ts
-    nm = case x of
-      Abs -> if
-        | FIL.isTyFloat rt -> "fabs"
-        | otherwise -> "abs"
-      Sqrt -> "sqrt"
-      Sin -> "sin"
-      Cos -> "cos"
-      Floor -> "floor"
-      Ceil -> "ceil"
-      Truncate -> "trunc"
-      Round -> "round"
-      Memset -> "memset"
-      Memmove -> "memmove"
-      Memcpy -> "memcpy"
+llvmRHS :: Ty -> Text -> [Val] -> Doc ann
+llvmRHS t nm vs = "call" <+> llvm t <+> globalName nm <+> tupled [ llvmTyped v | v <- vs, not $ FIL.isTyUnit $ FIL.typeOf v ]
 
 data Terminator
   = Br BlockId
@@ -571,7 +369,7 @@ setCurrentBlock :: BlockId -> M ()
 setCurrentBlock bid = modify' $ \st -> st{ currentBlockId = bid }
 
 data Stmt
-  = Instr Val Instr [Val]
+  = Instr Val Text [Val]
   deriving (Show, Data)
 
 class LLVM a where
@@ -583,20 +381,18 @@ instance LLVM Sz where
 instance LLVM Ty where
   llvm x = case x of
     TyPointer _ t -> llvm t <> "*"
-    TyString pos -> llvm $ TyPointer pos $ TyChar pos 8
-    TyChar pos sz -> llvm $ TyUInt pos sz
-    TyFloat _ 16 -> "half"
-    TyFloat _ 32 -> "float"
-    TyFloat _ 64 -> "double"
+    TyString pos -> llvm $ TyPointer pos $ TyChar pos
+    TyChar{} -> "i8"
+    TyFloat _ F32 -> "float"
+    TyFloat _ F64 -> "double"
 
-    TyInt _ sz -> "i" <> llvm sz
-    TyUInt pos sz -> llvm $ TyInt pos sz
-    TyOpaque pos -> llvm $ TyUInt pos 8 -- opaque types must only be accessed through a pointer so we can pick any type here to stand in for void*
-    TyEnum pos -> llvm $ TyUInt pos 32
-    TyBool pos -> llvm $ TyUInt pos 1
-    TyUnit _ -> "void"
+    TyInt _ sz -> "i" <> pretty sz
+    TyUInt _ sz -> "i" <> pretty sz
+    TyOpaque pos -> llvm $ TyUInt pos U8 -- opaque types must only be accessed through a pointer so we can pick any type here to stand in for void*
+    TyEnum pos -> llvm $ TyUInt pos U32
+    TyBool{} -> "i1"
+    TyUnit{} -> "void"
     TyArray _ sz t -> "[" <+> pretty sz <+> "x" <+> llvm t <+> "]"
-    _ -> unreachable "llvm: unexpected type" x
 
 instance LLVM Val where
   llvm x = case x of
@@ -607,21 +403,19 @@ instance LLVM Val where
 instance LLVM Scalar where
   llvm x = case x of
     Char _ a -> pretty $ fromEnum a
-    Float _ a -> pretty $ show a
-    Int _ a -> pretty $ show a
-    UInt _ a -> pretty $ show a
+    Float _ a -> pretty a
+    Int _ a -> pretty a
+    UInt _ a -> pretty a
     String _ a -> pretty a -- this has been turned into a register...
     Bool _ a -> if a then "1" else "0"
     Enum _ _ i -> pretty i
     Undef _ _ -> "undef"
-    Extern _ nm _ -> llvm nm
+    Extern _ nm _ -> globalName nm
     Register _ a -> llvm a
 
-instance LLVM AString where
-  llvm x = "@" <> pretty x
-
-instance LLVM RegisterId where
-  llvm x = "%r" <> pretty (unRegisterId x)
-
 instance LLVM Register where
-  llvm x = llvm $ registerId x
+  llvm x = if
+    | registerIsGlobal x -> "@g" <> i
+    | otherwise -> "%r" <> i
+    where
+      i = pretty (unRegisterId $ registerId x)

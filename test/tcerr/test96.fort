@@ -1,2 +1,4 @@
-main = Prim.memcpy (8, 8, 8)
+main = c-memcpy 8 8 8
+qualifier Prelude = "lib/prelude.fort"
+
 

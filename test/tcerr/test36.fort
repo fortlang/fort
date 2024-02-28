@@ -1,1 +1,4 @@
-main = Prim.assert ("needs a bool", ())
+
+qualifier Prelude = "lib/prelude.fort"
+
+main = assert () "needs a bool"

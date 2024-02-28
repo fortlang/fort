@@ -1,9 +1,9 @@
 type T = Sum
   Just: Char
 
-type Char = C 8
+qualifier Prelude = "lib/prelude.fort"
 
 main = do
-  p = Prim.alloca `T`
-  Prim.store (p, Just)
+  p = alloca `T`
+  store p Just
 

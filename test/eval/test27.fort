@@ -1,33 +1,27 @@
 myloop = \i0 -> do
   tailrec
-    go = \i -> Prim.exit 0
+    go = \i -> do
+      println "done"
+      exit 0
   go i0
 
-;; BAL:
-;; myloop = \i0 -> do
-  ;; tailrec
-   ;;  go = \ma -> case ma of
-    ;;   Nothing -> println "done"
-     ;;  Just i -> do
-      ;;   print i
-;; 	print ' '
-;; 	if
-;; 	  i == 0 -> go Nothing
-;; 	  True -> go (Just (i - 1))
-;; 
-;;   go (Just i0)
+myloop2 = \i0 -> do
+  tailrec
+    go = \ma -> case ma of
+      Nothing -> println "done"
+      Just i -> do
+        print i
+	print ' '
+	if
+	  i == 0 -> go Nothing
+	  True -> go (Just (i - 1))
 
-operator - = subtract infixl 6.0
-equal = curry Prim.eq
-operator == = equal infix 4.0
-subtract = curry Prim.sub
-
-print = Prim.print
-println = \x -> do
-  print x
-  print '\n'
-
-curry = \f a b -> f (a, b)
+  go (Just i0)
 
 main = do
+  ;; println (myloop2 2) BAL: causes an error but not caught by typechecker
+  ;; _ = myloop2 2 BAL: causes an error but not caught by typechecker
   myloop 3
+
+qualifier Prelude = "lib/prelude.fort"
+

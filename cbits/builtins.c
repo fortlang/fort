@@ -14,76 +14,76 @@ int test_extern_int = 42;
 int FORT_argc;
 char **FORT_argv;
 
-int getErrno()
+__attribute__((always_inline)) int getErrno()
 { return errno;
 }
 
-void FORT_print_Bool(int x)
+__attribute__((always_inline)) void FORT_print_Bool(int x)
 {
   printf("%s", x ? "True" : "False");
 }
 
-void FORT_print_F32(float32_t x)
+__attribute__((always_inline)) void FORT_print_F32(float32_t x)
 {
   printf("%0.9f", x);
 }
 
-void FORT_print_F64(float64_t x)
+__attribute__((always_inline)) void FORT_print_F64(float64_t x)
 {
   printf("%0.9f", x);
 }
 
-void FORT_print_String(char *x)
+__attribute__((always_inline)) void FORT_print_String(char *x)
 {
   printf("%s", x);
 }
 
-void FORT_print_Pointer(char *x)
+__attribute__((always_inline)) void FORT_print_Pointer(char *x)
 {
   printf("%p", (void*)x);
 }
 
-void FORT_print_C8(uint8_t x)
+__attribute__((always_inline)) void FORT_print_C8(uint8_t x)
 {
   printf("%c", x);
 }
 
-void FORT_print_ENUM(uint32_t x)
+__attribute__((always_inline)) void FORT_print_ENUM(uint32_t x)
 {
   printf("%u", x);
 }
 
-void FORT_print_U32(uint32_t x)
+__attribute__((always_inline)) void FORT_print_U32(uint32_t x)
 {
   printf("%u", x);
 }
 
-void FORT_print_U16(uint16_t x)
+__attribute__((always_inline)) void FORT_print_U16(uint16_t x)
 {
   printf("%u", x);
 }
 
-void FORT_print_U8(uint8_t x)
+__attribute__((always_inline)) void FORT_print_U8(uint8_t x)
 {
   printf("%u", x);
 }
 
-void FORT_print_I8(int8_t x)
+__attribute__((always_inline)) void FORT_print_I8(int8_t x)
 {
   printf("%d", x);
 }
 
-void FORT_print_I16(int16_t x)
+__attribute__((always_inline)) void FORT_print_I16(int16_t x)
 {
   printf("%d", x);
 }
 
-void FORT_print_I32(int32_t x)
+__attribute__((always_inline)) void FORT_print_I32(int32_t x)
 {
   printf("%d", x);
 }
 
-void FORT_print_I64(int64_t x)
+__attribute__((always_inline)) void FORT_print_I64(int64_t x)
 {
   printf("%" PRId64 "", x);
 }

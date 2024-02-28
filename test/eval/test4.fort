@@ -1,3 +1,6 @@
+
+qualifier Prelude = "lib/prelude.fort"
+
 main = do
   x = if
     False -> Just 22.2
@@ -16,11 +19,4 @@ main = do
     True -> Right 'c'
   println z
   0
-
-print = Prim.print
-println = \x -> do
-  print x
-  print '\n'
-
-
 

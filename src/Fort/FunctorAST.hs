@@ -21,10 +21,12 @@ import Data.Text (Text)
 import Fort.Abs (UIdentTok(..), BinTok(..), DecTok(..), HexTok(..), OctTok(..), CharTok(..), IntTok(..), PrefixOpTok(..), LIdentTok(..), ADoubleTok(..), AStringTok(..), InfixOpTok(..))
 import Fort.Errors
 import GHC.Generics (Generic)
+import Numeric (readBin)
 import Prelude
 import Prettyprinter
 import qualified Data.List as List
 import qualified Data.List.NonEmpty as NE
+import qualified Data.Text as Text
 import qualified Fort.Abs as Abs
 
 pvcat :: Pretty a => [a] -> Doc ann
@@ -62,28 +64,6 @@ toLayoutElemFieldDecl (Abs.LayoutElemFieldDecl _ b) = toFieldDecl b
 toLayoutElemTailRecDecl (Abs.LayoutElemTailRecDecl _ b) = toTailRecDecl b
 
 toLayoutElemExpDecl (Abs.LayoutElemExpDecl _ b) = toExpDecl b
-
-data ADouble a = ADouble a Text
-  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
-
-instance Pretty (ADouble a) where
-  pretty (ADouble _ a) = pretty a
-
-toADouble (Abs.ADouble a (ADoubleTok b)) = pure $ ADouble a b
-
-data AString a = AString a Text
-  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
-
-instance Eq (AString a) where
-  AString _ a == AString _ b = a == b
-
-instance Ord (AString a) where
-  compare (AString _ a) (AString _ b) = compare a b
-
-instance Pretty (AString a) where
-  pretty (AString _ x) = pretty x
-
-toAString (Abs.AString a (AStringTok b)) = pure $ AString a b
 
 data AltPat a
     = PCon a (UIdent a) (Pat a)
@@ -134,10 +114,10 @@ instance Pretty (CaseAlt a) where
 
 data Decl a
     = ExpDecl a (ExpDecl a)
-    | ExportDecl a (AString a) (QualLIdent a) (Type a)
+    | ExportDecl a Text (QualLIdent a) (Type a)
     | InfixDecl a (InfixOp a) (InfixInfo a)
     | PrefixDecl a (PrefixOp a) (QualLIdent a)
-    | QualDecl a (UIdent a) (AString a)
+    | QualDecl a (UIdent a) Text
     | TypeDecl a (UIdent a) (Type a)
   deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
@@ -172,7 +152,7 @@ data Exp a
     | Con a (UIdent a)
     | Do a (NonEmpty (Stmt a))
     | EType a (Type a)
-    | Extern a (AString a) (Type a)
+    | Extern a Text (Type a)
     | If a (Exp a) (Exp a) (Exp a)
     | Else a (Exp a) (Exp a)
     | Parens a (Exp a)
@@ -234,11 +214,18 @@ toLayoutElemCaseAlt :: MonadIO m => Abs.LayoutElemCaseAlt' Position -> m (CaseAl
 toLayoutElemFieldDecl :: MonadIO m => Abs.LayoutElemFieldDecl' Position -> m (FieldDecl Position)
 toLayoutElemTailRecDecl :: MonadIO m => Abs.LayoutElemTailRecDecl' Position -> m (TailRecDecl Position)
 toLayoutElemExpDecl :: MonadIO m => Abs.LayoutElemExpDecl' Position -> m (ExpDecl Position)
-toADouble :: MonadIO m => Abs.ADouble' Position -> m (ADouble Position)
-toAString :: MonadIO m => Abs.AString' Position -> m (AString Position)
 toAltPat :: MonadIO m => Abs.AltPat' Position -> m (AltPat Position)
 toBinding :: MonadIO m => Abs.Binding' Position -> m (Binding Position)
 toCaseAlt :: MonadIO m => Abs.CaseAlt' Position -> m (CaseAlt Position)
+
+toAString :: MonadIO m => Abs.AString' Position -> m Text
+toAString (Abs.AString _ (AStringTok b)) = pure $ Text.pack $ read $ Text.unpack b
+
+toADouble :: MonadIO m => Abs.ADouble' Position -> m Double
+toADouble (Abs.ADouble _ (ADoubleTok b)) = pure $ read $ removeUnderscores $ Text.unpack b
+
+removeUnderscores :: String -> String
+removeUnderscores = List.filter ((/=) '_')
 
 prettyLam :: [Binding a] -> Exp a -> Doc ann
 prettyIf :: [IfBranch a] -> Exp a -> Doc ann
@@ -339,7 +326,7 @@ toTupleElemType :: MonadIO m => Abs.TupleElemType' Position -> m (Type Position)
 toLayoutElemTField :: MonadIO m => Abs.LayoutElemTField' Position -> m (TField Position)
 
 data InfixInfo a
-    = InfixInfo a (QualLIdent a) (Fixity a) (ADouble a)
+    = InfixInfo a (QualLIdent a) (Fixity a) Double
   deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 hsep2 :: (Pretty a, Pretty b) => a -> b -> Doc ann
@@ -399,12 +386,6 @@ instance HasText (InfixOp a) where
 
 instance HasText (PrefixOp a) where
   textOf (PrefixOp _ s) = s
-
-instance HasText (AString a) where
-  textOf (AString _ s) = s
-
-instance HasText (ADouble a) where
-  textOf (ADouble _ s) = s
 
 instance HasText (UIdent a) where
   textOf (UIdent _ s) = s
@@ -497,10 +478,10 @@ data Scalar a
     = AFalse a
     | ATrue a
     | Char a Text
-    | Double a (ADouble a)
-    | Int a Text
-    | String a (AString a)
-    | UInt a (UInt a)
+    | Double a Double
+    | Int a Integer
+    | String a Text
+    | UInt a Integer
   deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 toScalar x = case x of
@@ -508,9 +489,23 @@ toScalar x = case x of
     Abs.ATrue a -> pure $ ATrue a
     Abs.Char a (CharTok b) -> pure $ Char a b
     Abs.Double a b -> Double a <$> toADouble b
-    Abs.Int a (IntTok b) -> pure $ Int a b
+    Abs.Int a (IntTok b) -> pure $ Int a $ valOfIntText b
     Abs.String a b -> String a <$> toAString b
-    Abs.UInt a b -> UInt a <$> toUInt b
+    Abs.UInt a b -> case b of
+      Abs.Dec _ (DecTok s) -> pure $ Int a $ valOfIntText s
+      _ -> UInt a <$> toUInt b
+
+valOfIntText :: Text -> Integer
+valOfIntText = read . removeUnderscores . Text.unpack
+
+toUInt :: MonadIO m => Abs.UInt' Position -> m Integer
+toUInt x = case x of
+  Abs.Dec _ (DecTok s) -> pure $ valOfIntText s
+  Abs.Bin pos (BinTok s) -> case readBin $ removeUnderscores $ List.drop 2 $ Text.unpack s of
+    [(n, "")] -> pure n
+    _ -> unreachable "valOf:Bin" $ Posn pos s
+  Abs.Hex _ (HexTok s) -> pure $ valOfIntText s
+  Abs.Oct _ (OctTok s) -> pure $ valOfIntText s
 
 instance Pretty (Scalar a) where
   pretty x = case x of
@@ -625,11 +620,11 @@ data Type a
     | TFun a (Type a) (Type a)
     | TApp a (Type a) (Type a)
     | TName a (UIdent a)
-    | TOpaque a (AString a)
+    | TOpaque a Text
     | TParens a (Type a)
     | TQualName a (UIdent a) (UIdent a)
     | TRecord a (NonEmpty (TField a))
-    | TSize a (UInt a)
+    | TSize a Integer
     | TSizes a (NonEmpty (Type a))
     | TSum a (NonEmpty (TSum a))
     | TTuple a (NonEmpty2 (Type a))
@@ -711,27 +706,6 @@ instance Pretty (UIdent a) where
   pretty (UIdent _ x) = pretty x
 
 toUIdent (Abs.UIdent a (UIdentTok b)) = pure $ UIdent a b
-
-data UInt a
-    = Bin a Text
-    | Dec a Text
-    | Hex a Text
-    | Oct a Text
-  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
-
-instance Pretty (UInt a) where
-  pretty x = case x of
-    Bin _ b -> pretty b
-    Dec _ b -> pretty b
-    Hex _ b -> pretty b
-    Oct _ b -> pretty b
-
-toUInt :: MonadIO m => Abs.UInt' Position -> m (UInt Position)
-toUInt x = case x of
-  Abs.Bin a (BinTok b) -> pure $ Bin a b
-  Abs.Dec a (DecTok b) -> pure $ Dec a b
-  Abs.Hex a (HexTok b) -> pure $ Hex a b
-  Abs.Oct a (OctTok b) -> pure $ Oct a b
 
 -- -- | Get the start position of something.
 instance Positioned (Scalar Position) where
@@ -839,9 +813,6 @@ instance Positioned (QualLIdent Position) where
   positionOf x = case x of
     Qual pos _ _ -> pos
     UnQual pos _ -> pos
-
-instance Positioned (AString Position) where
-  positionOf (AString pos _) = pos
 
 instance Positioned (Decl Position) where
   positionOf x = case x of

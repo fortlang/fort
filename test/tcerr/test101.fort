@@ -1,1 +1,3 @@
-main = Prim.print (Prim.cast (0.2, `F 143`))
+main = println cast 0.2 `F 143`
+
+qualifier Prelude = "lib/prelude.fort"

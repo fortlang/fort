@@ -1,2 +1,5 @@
-main = Prim.eq ([1], ['c'])
+
+qualifier Prelude = "lib/prelude.fort"
+
+main = equal [1] ['c']
 

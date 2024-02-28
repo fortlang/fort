@@ -1,2 +1,7 @@
-main = Prim.memmove (8, 8, 8)
+main = do
+  c-memmove 8 8 8
+  ()
+
+qualifier Prelude = "lib/prelude.fort"
+
 

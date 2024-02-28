@@ -1,21 +1,5 @@
-type Int = I 32
-type Double = F 64
-type Char = C 8
 
-operator @ = load
-operator := = store infix -1.0
-operator # = index infixl 9.0
-
-load = Prim.load
-print = Prim.print
-
-println = \x -> do
-  print x
-  print '\n'
-
-store = \ptr a -> Prim.store (ptr, a)
-alloca = Prim.alloca
-index = \ptr n -> Prim.index (ptr, n)
+qualifier Prelude = "lib/prelude.fort"
 
 type T = Record
   foo: Array 5 Double
@@ -29,6 +13,7 @@ main = do
 
   p = alloca `Array [3, 2] Double`
   p#2#1 := 4.2
+  ;; BAL: fixme
   ;; x = @(p#2#1)
   ;; println x
   ;;

@@ -1,1 +1,4 @@
-main = Prim.memcpy 4
+
+qualifier Prelude = "lib/prelude.fort"
+
+main = memcpy 4

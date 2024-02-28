@@ -1,1 +1,4 @@
-main = Prim.gt (Red, 0)
+main = greater-than Red 0
+
+qualifier Prelude = "lib/prelude.fort"
+

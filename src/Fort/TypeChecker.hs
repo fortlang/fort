@@ -18,7 +18,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Fort.Type as Type
 
-typeCheckModules :: [(FilePath, Map AString Exported)] -> IO ()
+typeCheckModules :: [(FilePath, Map Text Exported)] -> IO ()
 typeCheckModules xs = sequence_ $ concat [ [ evalExported a | a <- Map.elems m ] | (_, m) <- xs ]
 
 typeCheckDecls :: [Decl] -> IO ()
@@ -32,14 +32,14 @@ evalExported x = case x of
   Main v ds -> evalSt ds $ do
     env <- evalDecls ds
     case lookup_ v env of
-      TyInt _ 32 -> pure ()
-      TyUInt _ 32 -> pure ()
+      TyInt _ I32 -> pure ()
+      TyUInt _ U32 -> pure ()
       TyUnit _ -> pure ()
       _ -> err100ST "expected return type of main function to be int or ()" v
 
   Exported q t ds -> evalSt ds $ do
     t' <- evalType_ t
-    checkExtern t t'
+    checkExtern t'
     case t' of
       TyFun _ ta tb -> do
         env <- evalDecls ds
@@ -57,7 +57,7 @@ evalDecls ds = evalExpDecls initEnv [ a | ExpDecl _ a <- ds ]
 initEnv :: TyEnv
 initEnv =
   Map.insert (LIdent noPosition "Prim.slow-safe-build") (TyBool noPosition) $
-  Map.mapKeys (\nm -> LIdent noPosition $ textOf nm) $
+  Map.mapKeys (\nm -> LIdent noPosition nm) $
   Map.mapWithKey (\nm _ -> XTyPrimCall noPosition nm) primCallTys
 
 evalSt :: [Decl] -> M a -> IO a
@@ -355,7 +355,7 @@ eval env x = traceEval x $ case x of
 
   Extern _ _ t -> do
     t' <- evalType_ t
-    checkExtern t t'
+    checkExtern t'
     pure t'
 
   Case _ a bs -> do

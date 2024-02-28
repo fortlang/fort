@@ -1,4 +1,7 @@
+
+qualifier Prelude = "lib/prelude.fort"
+
 main = do
   arr = [ Foo, Bar ]
-  p = Prim.alloca (Prim.typeof arr)
-  Prim.store (p, arr)
+  p = alloca (typeof arr)
+  store p arr

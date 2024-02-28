@@ -1,1 +1,4 @@
-main = Prim.index ((), 1)
+
+qualifier Prelude = "lib/prelude.fort"
+
+main = index () 1

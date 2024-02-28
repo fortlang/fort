@@ -1,8 +1,9 @@
+
+qualifier Prelude = "lib/prelude.fort"
+
 type MChar = Sum
   Just: Char
   Nothing
-
-type Char = C 8
 
 main = do
   println "\nTest: Array x Reg"
@@ -187,7 +188,7 @@ main = do
   case @(p#4) of
     AArray aa -> do
       println "AArray"
-      println (Prim.typeof aa)
+      println (typeof aa)
       println @(aa#0)
       println @(aa#1)
     _ -> println "not AArray"
@@ -226,8 +227,6 @@ main = do
 
   ()
 
-type Int = I 32
-type Double = F 64
 type MDouble = Sum
   Just: Double
   Nothing
@@ -241,21 +240,3 @@ type TT = Sum
   ANothing
   ;; BAL: APtrArray: Array 2 Int
 
-operator @ = load
-operator := = store infix -1.0
-operator # = index infixl 9.0
-
-print = Prim.print
-
-println = \x -> do
-  print x
-  print '\n'
-
-alloca = Prim.alloca
-
-curry = \f a b -> f (a, b)
-
-load = Prim.load
-store = curry Prim.store
-
-index = curry Prim.index

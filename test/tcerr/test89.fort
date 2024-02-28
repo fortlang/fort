@@ -1,2 +1,5 @@
+
+qualifier Prelude = "lib/prelude.fort"
+
 main = do
-  Prim.index (True, 3)
+  index True 3

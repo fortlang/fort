@@ -1,1 +1,6 @@
-main = Prim.ne ((), ())
+main = do
+  _ = not-equal () ()
+  ()
+
+qualifier Prelude = "lib/prelude.fort"
+

@@ -1,1 +1,7 @@
-main = Prim.add (True, 1)
+main = do
+  _ = add True 1
+  ()
+
+qualifier Prelude = "lib/prelude.fort"
+
+

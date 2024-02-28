@@ -1,7 +1,4 @@
-negate = Prim.neg
-println = \x -> do
-  Prim.print x
-  Prim.print '\n'
+qualifier Prelude = "lib/prelude.fort"
 
 main = do
   println (negate 3)

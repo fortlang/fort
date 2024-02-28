@@ -1,1 +1,4 @@
-main = Prim.alloca 42
+
+qualifier Prelude = "lib/prelude.fort"
+
+main = alloca 42

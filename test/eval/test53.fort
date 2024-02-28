@@ -8,11 +8,11 @@ type FooBar = Sum
   Bar
   Baz
 
-println = \a -> do
-  Prim.print a
-  Prim.print '\n'
-
 main = do
-  p = Prim.alloca `Array 1 FooBar`
-  Prim.store (p, [Bar])
-  foo (Prim.load (Prim.index (p, 0)))
+  p = alloca `Array 1 FooBar`
+  store p [Bar]
+  foo $ load $ index p 0
+
+qualifier Prelude = "lib/prelude.fort"
+
+

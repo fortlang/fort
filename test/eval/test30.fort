@@ -1,6 +1,133 @@
 type T = \sz => Array sz (C 8)
 type TT = \sz => Array sz (T [4, sz])
 
+qualifier Prelude = "lib/prelude.fort"
+
+
 main = do
-  p = Prim.alloca `TT [2,3]`
-  0
+  p = alloca `Array 3 Char`
+  q = alloca `Array 3 Char`
+  println p
+  println (p # 0)
+  println (p # 1)
+  println (p # 2)
+  println q
+  println (q # 0)
+  println (q # 1)
+  println (q # 2)
+
+  p = alloca `Array [2, 3] Char`
+  p := [ [ 'a', 'b', 'c' ], [ 'd', 'e', 'f' ] ]
+  println p
+  println (p # 0)
+  println (p # 0 # 0)
+  println (p # 0 # 1)
+  println (p # 0 # 2)
+  println (p # 1 # 0)
+  println (p # 1 # 1)
+  println (p # 1 # 2)
+
+  q = alloca `Array [2, 3] Int`
+  q := [ [ 1, 2, 3 ], [ 4, 5, 6 ] ]
+  println (q # 0 # 0)
+  println (q # 0 # 1)
+  println (q # 0 # 2)
+  println (q # 1 # 0)
+  println (q # 1 # 1)
+  println (q # 1 # 2)
+
+  println q
+  println (q # 0)
+  println (q # 1)
+
+  r = alloca `Array [2, 3] Double`
+  r := [ [ 1.0, 2.0, 3.0 ], [ 4.0, 5.0, 6.0 ] ]
+
+  s = alloca `Array [2, 3] Bool`
+  s := [ [ True, False, True ], [ False, True, False ] ]
+
+  println @(p # 0 # 0)
+  println @(p # 0 # 1)
+  println @(p # 0 # 2)
+  println @(p # 1 # 0)
+  println @(p # 1 # 1)
+  println @(p # 1 # 2)
+
+  println @(q # 0 # 0)
+  println @(q # 0 # 1)
+  println @(q # 0 # 2)
+  println @(q # 1 # 0)
+  println @(q # 1 # 1)
+  println @(q # 1 # 2)
+
+  println @(r # 0 # 0)
+  println @(r # 0 # 1)
+  println @(r # 0 # 2)
+  println @(r # 1 # 0)
+  println @(r # 1 # 1)
+  println @(r # 1 # 2)
+
+  println @(s # 0 # 0)
+  println @(s # 0 # 1)
+  println @(s # 0 # 2)
+  println @(s # 1 # 0)
+  println @(s # 1 # 1)
+  println @(s # 1 # 2)
+
+  p = alloca `Array 3 Double`
+  q = alloca `Array 2 Int`
+
+  p := [1.2, 2.3, 3.4]
+  q := [1,2]
+
+  println @(p # 0)
+  println @(p # 1)
+  println @(p # 2)
+  println @(q # 0)
+  println @(q # 1)
+
+  p = alloca `Array [2, 3] Double`
+  p := [ [1.2, 2.3, 3.4], [1.2, 2.3, 33.44] ]
+  println @(p # 1 # 2)
+
+  p = alloca `Array [2, 2, 3] Double`
+  p := [ [ [1.2, 2.3, 3.4], [1.2, 2.3, 33.44] ]
+       , [ [1.2, 2.3, 3.4], [1.2, 2.3, 55.66] ]
+       ]
+  println @(p # 1 # 1 # 2)
+
+  p = alloca `TT [2,3]`
+  p := [ [ [ [ [ 'A', 'A', 'A' ], [ 'B', 'B', 'B' ] ]
+           , [ [ 'a', 'a', 'a' ], [ 'b', 'b', 'b' ] ]
+           , [ [ 'C', 'C', 'C' ], [ 'D', 'D', 'D' ] ]
+           , [ [ 'c', 'c', 'c' ], [ 'd', 'd', 'd' ] ]
+           ]
+         , [ [ [ 'd', 'A', 'A' ], [ 'B', 'B', 'B' ] ]
+           , [ [ 'a', 'a', 'a' ], [ 'b', 'b', 'b' ] ]
+           , [ [ 'C', 'C', 'C' ], [ 'D', 'D', 'D' ] ]
+           , [ [ 'c', 'c', 'c' ], [ 'd', 'd', 'd' ] ]
+           ]
+         , [ [ [ 'A', 'A', 'A' ], [ 'B', 'B', 'B' ] ]
+           , [ [ 'a', 'a', 'a' ], [ 'b', 'b', 'b' ] ]
+           , [ [ 'C', 'C', 'C' ], [ 'D', 'D', 'D' ] ]
+           , [ [ 'c', 'c', 'c' ], [ 'd', 'd', 'd' ] ]
+           ]
+         ]
+       , [ [ [ [ 'A', 'A', 'A' ], [ 'B', 'B', 'B' ] ]
+           , [ [ 'a', 'a', 'a' ], [ 'b', 'b', 'b' ] ]
+           , [ [ 'C', 'C', 'C' ], [ 'D', 'D', 'D' ] ]
+           , [ [ 'c', 'c', 'c' ], [ 'd', 'd', 'd' ] ]
+           ]
+         , [ [ [ 'A', 'A', 'A' ], [ 'B', 'B', 'B' ] ]
+           , [ [ 'a', 'a', 'a' ], [ 'b', 'b', 'b' ] ]
+           , [ [ 'C', 'C', 'C' ], [ 'D', 'D', 'D' ] ]
+           , [ [ 'c', 'c', 'c' ], [ 'd', 'd', 'd' ] ]
+           ]
+         , [ [ [ 'A', 'A', 'A' ], [ 'B', 'B', 'B' ] ]
+           , [ [ 'a', 'a', 'a' ], [ 'b', 'b', 'b' ] ]
+           , [ [ 'C', 'C', 'C' ], [ 'D', 'D', 'D' ] ]
+           , [ [ 'c', 'c', 'c' ], [ 'd', 'd', 'X' ] ]
+           ]
+         ]
+	 ]
+  println @(p # 1 # 2 # 3 # 1 # 2)

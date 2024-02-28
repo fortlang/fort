@@ -1,17 +1,12 @@
-operator > = greater-than infix 4.0
-print = Prim.print
+qualifier Prelude = "lib/prelude.fort"
 
 main = do
   z = if
     0 > 1 -> 1
-    ;; 0 > 2 -> 2
-    ;; 0 > 3 -> 3
-    ;; 0 > 4 -> 4
+    0 > 2 -> 2
+    0 > 3 -> 3
+    0 > 4 -> 4
     otherwise -> 5
   print z
   0
-
-greater-than = \x y -> Prim.gt (x, y)
-less-than = \x y -> Prim.lt (x, y)
-otherwise = True
 

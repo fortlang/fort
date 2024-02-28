@@ -82,6 +82,7 @@ class Positioned a where
   positionOf :: a -> Position
 
 data Posn a = Posn Position a
+  deriving Eq
 
 instance Positioned (Posn a) where
   positionOf (Posn pos _) = pos

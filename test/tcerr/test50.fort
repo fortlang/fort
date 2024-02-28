@@ -1,4 +1,7 @@
+
+qualifier Prelude = "lib/prelude.fort"
+
 type T = Sum
   Blue
 
-main = Prim.cast (Red, `T`)
+main = cast Red `T`

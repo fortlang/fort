@@ -1,21 +1,6 @@
-memcpy = \a b c -> Prim.memcpy (cast a `Pointer Char`, cast b `Pointer Char`, c)
-memmove = \a b c -> Prim.memmove (cast a `Pointer Char`, cast b `Pointer Char`, c)
-memset = \a b c -> Prim.memset (cast a `Pointer Char`, b, c)
-operator := = store infix -1.0
-store = curry Prim.store
-curry = \f x y -> f (x, y)
-operator # = index infixl 9.0
-index = curry Prim.index
-alloca = Prim.alloca
-cast = curry Prim.cast
-operator - = subtract infixl 6.0
-subtract = curry Prim.sub
-countof = Prim.countof
-
 c-puts = extern "puts" `Pointer Char -> Int`
 puts = \s -> c-puts (cast s `Pointer Char`)
 
-type Char = C 8
 type Int = I 32
 
 init = \a c -> do
@@ -24,6 +9,8 @@ init = \a c -> do
   a # (n - 1) := '\0'
   _ = puts a
   ()
+
+qualifier Prelude = "lib/prelude.fort"
 
 main = do
   a = alloca `Array 10 Char`

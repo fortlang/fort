@@ -1,11 +1,5 @@
-cast = \x t -> Prim.cast (x, t)
 
-print = Prim.print
-
-println = \x -> do
-  print x
-  print '\n'
-
+qualifier Prelude = "lib/prelude.fort"
 main = do
   x = cast 7 `F 64`
   println x

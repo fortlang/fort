@@ -1,1 +1,3 @@
-main = Prim.cast (1, `Array 16 (F 32)`)
+qualifier Prelude = "lib/prelude.fort"
+
+main = cast 1 `Array 16 (F 32)`

@@ -1,26 +1,8 @@
-operator # = index infixl 9.0
-index = curry Prim.index
-operator $ = apply infixr 0.0
-apply = \f ~a -> f a
-operator + = add infixl 6.0
-add = curry Prim.add
-operator - = subtract infixl 6.0
-subtract = curry Prim.sub
-operator > = greater-than infix 4.0
-greater-than = curry Prim.gt
-operator < = less-than infix 4.0
-less-than = curry Prim.lt
-operator @ = load
-load = Prim.load
-
-curry = \f x y -> f (x, y)
-
-operator := = store infix -1.0
-store = curry Prim.store
+qualifier P = "lib/prelude.fort"
 
 init = \ty -> record
   next = 0
-  buf = Prim.alloca ty
+  buf = alloca ty
 
 push = \x st -> do
   st.buf#st.next := x
@@ -42,9 +24,6 @@ debug = \st -> do
     otherwise -> Done ()
   println "]"
 
-type Char = C 8
-print = Prim.print
-otherwise = True
 from-ok = \a0 x -> case x of
   Ok a -> a
   _ -> a0

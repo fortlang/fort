@@ -1,1 +1,4 @@
-main = Prim.load ()
+
+qualifier Prelude = "lib/prelude.fort"
+
+main = load ()

@@ -1,10 +1,8 @@
+
+qualifier Prelude = "lib/prelude.fort"
+
 main = do
   x = case Red of
     Red -> 2.2
     v -> 1.1
   println x
-
-println = \x -> do
-  Prim.print x
-  Prim.print '\n'
-

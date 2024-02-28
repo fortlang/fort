@@ -1,22 +1,13 @@
 foo_p = extern "test_extern_int" `Pointer (Array 1 (I 32))`
-foo = Prim.index (foo_p, 0)
+foo = index foo_p 0
 
 main = do
-  println (Prim.cast ('a', `U 8`))
+  println (cast 'a' `U 8`)
   println (1 << 1 << 1)
 
-  println (Prim.load foo)
-  Prim.store (foo, 11)
-  println (Prim.load foo)
+  println (load foo)
+  store foo 11
+  println (load foo)
 
-println = \x -> do
-  Prim.print x
-  Prim.print '\n'
-
-curry = \f a b -> f (a, b)
-equal = curry Prim.eq
-operator == = equal infix 4.0
-
-operator << = bit-shift-l infixl 8.0
-bit-shift-l = curry Prim.shl
+qualifier Prelude = "lib/prelude.fort"
 

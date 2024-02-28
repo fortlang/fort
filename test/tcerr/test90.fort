@@ -1,1 +1,3 @@
-main = Prim.load 42
+main = load 42
+
+qualifier Prelude = "lib/prelude.fort"

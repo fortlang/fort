@@ -1,13 +1,5 @@
-operator - = sub infixl 6.0
-operator == = equal infix 4.0
 
-sub = \a b -> Prim.sub (a, b)
-equal = \a b -> Prim.eq (a, b)
-
-print = Prim.print
-println = \x -> do
-  print x
-  print "\n"
+qualifier Prelude = "lib/prelude.fort"
 
 main = do
   tailrec

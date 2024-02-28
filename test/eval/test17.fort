@@ -13,15 +13,5 @@ main = do
   println (Just 42 != Just 42)
   println (Just 42 == Nothing)
 
-println = \x -> do
-  Prim.print x
-  Prim.print '\n'
-
-operator == = equal infix 4.0
-operator != = not-equal infix 4.0
-
-curry = \f a b -> f (a, b)
-
-equal = curry Prim.eq
-not-equal = curry Prim.ne
+qualifier Prelude = "lib/prelude.fort"
 

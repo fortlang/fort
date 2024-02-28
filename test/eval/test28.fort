@@ -8,19 +8,10 @@ tailrec
  	print ' '
 	loop (i - 1, ())
 
-operator - = subtract infixl 6.0
-equal = curry Prim.eq
-operator == = equal infix 4.0
-subtract = curry Prim.sub
-
-print = Prim.print
-println = \x -> do
-  print x
-  print '\n'
-
-curry = \f a b -> f (a, b)
+qualifier Prelude = "lib/prelude.fort"
 
 main = do
+  (unused, ()) = (3, ())
   (v, ()) = (3, ())
-  loop (3, ())
+  loop (v, ())
 

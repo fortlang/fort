@@ -1,3 +1,6 @@
+
+qualifier Prelude = "lib/prelude.fort"
+
 type T = \x => Sum
   Red
   RGB: x
@@ -15,7 +18,3 @@ main = do
   println ((Red, Red) : `(T (U 32), T (U 32))`)
   println (Red : `(T (U 32))`)
   println ([[1,2], [3,4], [5,6]] : `TTT [3, 2] (I 32)`)
-
-println = \x -> do
-  Prim.print x
-  Prim.print '\n'

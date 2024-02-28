@@ -1,3 +1,6 @@
+
+qualifier Prelude = "lib/prelude.fort"
+
 arr = array
   1
   2
@@ -5,7 +8,3 @@ arr = array
 
 main = do
   println arr
-
-println = \x -> do
-  Prim.print x
-  Prim.print '\n'

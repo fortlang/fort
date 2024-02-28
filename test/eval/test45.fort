@@ -1,15 +1,15 @@
-println = \a -> do
-  Prim.print a
-  Prim.print '\n'
+
+qualifier Prelude = "lib/prelude.fort"
 
 main = do
-  println (Prim.abs -1.2)
-  println (Prim.sqrt 4.0)
-  println (Prim.sin 3.14)
-  println (Prim.cos 3.14)
-  println (Prim.ceil 3.14)
-  println (Prim.round 3.49)
-  println (Prim.round 3.5)
-  println (Prim.floor -3.14)
-  println (Prim.truncate -3.14)
+  println (abs -1)
+  println (abs -1.2)
+  println (sqrt 4.0)
+  println (sin 3.14)
+  println (cos 3.14)
+  println (ceiling 3.14)
+  println (round 3.49)
+  println (round 3.5)
+  println (floor -3.14)
+  println (truncate -3.14)
 

@@ -17,16 +17,14 @@ import Fort.Precedence
 import Fort.Qualify
 import Fort.Simplify
 import Fort.TypeChecker
-import Fort.Utils hiding (header) -- (Module, Decl'(..))
+import Fort.Utils hiding (header)
 import Options.Applicative
 import Paths_fort (version)
-import System.Exit
 import System.FilePath
 import System.Process
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Text as Text
-import System.IO.Error
 
 fortInfo :: ParserInfo Options
 fortInfo = info (options <**> simpleVersioner (showVersion version) <**> helper)
@@ -131,7 +129,7 @@ parseModules opts = go mempty mempty
           putStrLn fn
           absm <- parseModule (showLexer opts) myLexer resolveLayout pModule fn
           m <- toModule absm
-          let qs = [ (q, read $ Text.unpack $ textOf s) | QualDecl _ q s <- universeBi m ]
+          let qs = [ (q, Text.unpack s) | QualDecl _ q s <- universeBi m ]
           go (qs ++ quals) (Map.insert fn m tbl) (fmap snd qs ++ fns)
         Just _ -> go quals tbl fns
         
@@ -165,18 +163,14 @@ runExeFn (fn, bt) = do
 doCallCommand :: FilePath -> [String] -> IO ()
 doCallCommand nm xs = do
   let cmd = unwords (nm : xs)
-  eea <- try $ rawSystem nm xs
-  case eea of
-    Left (_ :: IOError) -> ioError $ mkIOError userErrorType (cmd ++ ": (unexpected system exception)") Nothing Nothing
-    Right a -> case a of
-      ExitSuccess -> pure ()
-      ExitFailure r -> ioError $ mkIOError userErrorType (cmd ++ ": (exit " ++ show r ++ ")") Nothing Nothing
+  putStrLn cmd
+  callCommand cmd
 
 buildFn :: [Text] -> (FilePath, BuildType) -> IO ()
 buildFn bldAppend (fn, bt) = case bt of
   Exe -> do
     putStrLn $ exeFn fn ++ ": (exe)"
-    doCallCommand "clang" $ ["-O3", "-o", exeFn fn, llvmFn fn] ++ fmap normalise (concat (fmap (words . Text.unpack) bldAppend))
+    doCallCommand "clang" $ ["-O3", "-flto", "-o", exeFn fn, llvmFn fn] ++ fmap normalise (concat (fmap (words . Text.unpack) bldAppend))
   Obj -> do
     putStrLn $ llvmFn fn ++ ": (obj)"
     doCallCommand "clang" ["-O3", "-c", "-o", objFn fn, llvmFn fn]

@@ -1,3 +1,6 @@
+
+qualifier Prelude = "lib/prelude.fort"
+
 type File = Opaque "FILE"
 
 fclose = extern "fclose" `Pointer File -> I 32`

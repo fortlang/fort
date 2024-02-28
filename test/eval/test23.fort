@@ -1,21 +1,10 @@
-type File = Opaque "FILE"
-
-type T = \a sz => Pointer a -> I sz
-
-fopen_ = extern "fopen" `(String, String) -> Pointer File`
-
-fopen = curry fopen_
-
-fclose = extern "fclose" `T File 32`
+qualifier P = "lib/prelude.fort"
 
 main = do
-  fp = fopen "test/eval/test23.fort" "r"
-  println fp
-  println (fclose fp)
-
-println = \x -> do
-  Prim.print x
-  Prim.print '\n'
-
-curry = \f a b -> f (a, b)
+  mfp = fopen "test/eval/test23.fort" "r"
+  println $ typeof mfp
+  println mfp
+  case mfp of
+    Ok fp -> println (fclose fp)
+    err -> println err
 

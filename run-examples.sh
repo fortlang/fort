@@ -1,3 +1,4 @@
+rm -f fort.tix
 cabal run fort -- examples/helloworld.fort --run
 cabal run fort -- lib/append-buffer.fort --main-is=test --run
 cabal run fort -- examples/mandelbrot.fort

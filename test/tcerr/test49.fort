@@ -1,1 +1,5 @@
-main = Prim.shl (1.2, 3.4)
+qualifier Prelude = "lib/prelude.fort"
+
+main = do
+  _ = bit-shift-l 1.2 3.4
+  ()

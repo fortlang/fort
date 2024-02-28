@@ -36,7 +36,7 @@ evalSt ssb ds m =
   where
     st0 = (initSt ssb) { calls = primCalls }
 
-simplifyModules :: Bool -> [(FilePath, Map AString Exported)] -> IO [(FilePath, Prog)]
+simplifyModules :: Bool -> [(FilePath, Map Text Exported)] -> IO [(FilePath, Prog)]
 simplifyModules ssb xs = sequence [ (fn, ) <$> mapM (simplifyFunc ssb) m | (fn, m) <- xs ]
 
 traceEval :: (Positioned a, Pretty a) => a -> M b -> M b
@@ -49,18 +49,18 @@ traceEval x m = do
 
 mainArgOf :: [Decl] -> M Val
 mainArgOf xs = do
-  margc <- lookupArg "\"FORT_argc\""
-  margv <- lookupArg "\"FORT_argv\""
+  margc <- lookupArg "FORT_argc"
+  margv <- lookupArg "FORT_argv"
   case (margc, margv) of
     (Nothing, Nothing) -> pure $ VUnit noPosition
     (Just argc, Nothing) -> pure argc
     (Just argc, Just argv) -> pure $ VTuple (positionOf argc) $ fromList2 [argc, argv]
     (Nothing, Just argv) -> do
       let pos = positionOf argv
-      argc <- freshVal $ TyInt pos 32
+      argc <- freshVal $ TyInt pos I32
       pure $ VTuple pos $ fromList2 [argc, argv]
   where
-    ss = [ (textOf s, (e, t)) | e@(Extern _ (s :: AString) t) <- universeBi xs ]
+    ss = [ (s, (e, t)) | e@(Extern _ s t) <- universeBi xs ]
     lookupArg nm = case lookup nm ss of
       Nothing -> pure Nothing
       Just (e, ty) -> do
@@ -86,12 +86,12 @@ simplifyFunc ssb x = case x of
     mainArg <- mainArgOf ds
     env <- evalExpDecls (initEnv ssb) [ a | ExpDecl _ a <- ds ]
     let r = case lookup_ v env of
-          VUnit pos -> VScalar pos $ VInt pos 0
+          VUnit pos -> VScalar pos $ VInt pos $ VInt32 0
           val -> val
     blk <- evalBlockM $ exitPrim r
     bds <- gets decls
     pure $ Func
-      { retTy = TyInt (positionOf v) 32
+      { retTy = TyInt (positionOf v) I32
       , arg = mainArg
       , body = blk{ blockDecls = reverse bds ++ blockDecls blk }
       }
@@ -129,11 +129,11 @@ err111ST msg a b c = lift $ TC.err111ST msg a b c
 initEnv :: Bool -> Env
 initEnv b =
   Map.insert (mkTok noPosition "Prim.slow-safe-build") (VScalar noPosition $ VBool noPosition b) $
-  Map.mapKeys (\nm -> LIdent noPosition $ textOf nm) $
+  Map.mapKeys (\nm -> LIdent noPosition nm) $
   Map.mapWithKey (\nm _ -> XVCall noPosition nm) primCalls
 
 insertAlt :: (VScalar, Block) -> [(VScalar, Block)] -> M [(VScalar, Block)]
-insertAlt alt@(k, _) alts = case filter (== k) $ fmap fst alts of
+insertAlt alt@(k, _) alts = case filter ((== IsEqual) . compareScalars k) $ fmap fst alts of
   [] -> pure (alt : alts)
   ks -> err10nST "duplicate alternative" k ks
 
@@ -327,7 +327,7 @@ eval env x = traceEval x $ case x of
 
     Extern pos s t -> do
       t' <- evalType_ t
-      checkExtern t t'
+      checkExtern t'
       case t' of
         TyFun _ _ rt -> do
           modify' $ \st -> st{ calls = Map.insert s (fun rt s) $ calls st }
@@ -364,9 +364,7 @@ eval env x = traceEval x $ case x of
 
     If _ a b c -> do
       va <- eval env a
-      blkb <- evalBlock env b
-      blkc <- evalBlock env c
-      evalIf va blkb blkc
+      evalIf va (eval env b) (eval env c)
 
     Else _ a b -> do
       _ <- eval env a >>= assertWithMessage "'if' is never true"

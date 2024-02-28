@@ -1,1 +1,4 @@
-main = Prim.store ((),())
+
+qualifier Prelude = "lib/prelude.fort"
+
+main = store () ()

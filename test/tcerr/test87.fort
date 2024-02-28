@@ -1,1 +1,3 @@
-main = Prim.countof True
+
+qualifier Prelude = "lib/prelude.fort"
+main = countof True

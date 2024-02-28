@@ -1,1 +1,3 @@
-main = Prim.exit 1.2
+
+qualifier Prelude = "lib/prelude.fort"
+main = exit 1.2

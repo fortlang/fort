@@ -22,7 +22,7 @@ instance Pretty Exported where
     Exported q t ds -> "exported" <+> pretty q <+> ":" <+> pretty t <+> "=" <+> vlist "do" (fmap pretty ds)
 
 -- if we don't find a binding, we assume it's in a where clause and will be checked for in a later pass
-dependenciesModules :: MonadIO m => Text -> [FilePath] -> [(FilePath, Module)] -> m ([Decl], [(FilePath, Map AString Exported)])
+dependenciesModules :: MonadIO m => Text -> [FilePath] -> [(FilePath, Module)] -> m ([Decl], [(FilePath, Map Text Exported)])
 dependenciesModules mainNm fns ms = do
   bld <- reachableDecls gr (Set.fromList $ catMaybes $ fmap toBuildName allDecls)
   (bld,) <$> sequence [ (fn, ) <$> dependenciesModule mainNm gr fn ds | (fn, Module _ ds) <- ms, fn `List.elem` fns ]
@@ -41,7 +41,7 @@ toBuildName (ExpDecl _ (Binding _ (Immediate _ x) _)) = go x
 
 toBuildName _ = Nothing
 
-dependenciesModule :: MonadIO m => Text -> DepGraph -> FilePath -> [Decl] -> m (Map AString Exported)
+dependenciesModule :: MonadIO m => Text -> DepGraph -> FilePath -> [Decl] -> m (Map Text Exported)
 dependenciesModule mainNm gr fn ds0 = do
   exs0 <- mainReaches
   bs <- exportedFuncs ds0
@@ -52,19 +52,19 @@ dependenciesModule mainNm gr fn ds0 = do
       [] -> pure []
       [v] -> do
         ds <- reachableDecls gr (Set.singleton $ nameOf v)
-        pure [(AString (positionOf v) "main", Main v ds)]
+        pure [("main", Main v ds)]
       _ -> unreachablen00 "multiple mains" vs
       where
         vs = concat [ universeBi b | ExpDecl _ (Binding _ b _) <- ds0 ]
         qv = mkQNameText (Text.pack fn) mainNm
 
-exportedFuncs :: MonadIO m => [Decl] -> m [(AString, (QualLIdent, Type))]
+exportedFuncs :: MonadIO m => [Decl] -> m [(Text, (QualLIdent, Type))]
 exportedFuncs ds = do
-  let bs = [ n | ExportDecl _ n _ _ <- ds ]
+  let bs = [ Posn pos n | ExportDecl pos n _ _ <- ds ]
   let cs = List.nub bs
   case bs List.\\ cs of
     [] -> pure [ (a, (b, c)) | ExportDecl _ a b c <- ds ]
-    bs' -> errn00 "duplicate export names" [ n | ExportDecl _ n _ _ <- ds, n `elem` bs' ]
+    bs' -> errn00 "duplicate export names" [ Posn pos n | ExportDecl pos n _ _ <- ds, Posn pos n `elem` bs' ]
 
 reachableDecls :: MonadIO m => DepGraph -> Set Name -> m [Decl]
 reachableDecls gr nms = catMaybes <$> mapM f (sccs gr)

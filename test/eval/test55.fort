@@ -1,10 +1,20 @@
 qualifier Prelude = "lib/prelude.fort"
 
 main = do
-  println (0XFF == 0xff)
-  println (0XFF == 0xf_f)
-  println (1_6 == cast 0x1_0_ `Int`)
-  println (-1_6 == -16_)
-  println (1_1.2_2e3_3 == 11.22e33)
-  println (0B0_11_0__0__11_0 == 0x6_6)
-  println (0O00_11_0__0__11_0 == 0o001100110)
+  vf = cast argc `Double` * 5.5
+  println vf
+
+  print "runtime frem "
+  println (vf % -2.3)
+
+  print "const frem "
+  println (5.5 % -2.3)
+
+  vi = argc * 5
+
+  println vi
+  print "runtime rem "
+  println (vi % -2)
+
+  print "const rem "
+  println (5 % -2)

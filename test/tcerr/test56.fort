@@ -1,1 +1,4 @@
-main = Prim.load (Prim.cast (1234, `Pointer ()`))
+
+qualifier Prelude = "lib/prelude.fort"
+
+main = load (cast 1234 `Pointer ())

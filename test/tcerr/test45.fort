@@ -1,2 +1,3 @@
-main = Prim.cast (3, `(F 32, I 32)`)
+qualifier Prelude = "lib/prelude.fort"
+main = cast 3 `(F 32, I 32)`
 

@@ -1,1 +1,3 @@
+
+qualifier Prelude = "lib/prelude.fort"
 main = extern "foo" `() -> (String, String)`
