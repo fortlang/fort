@@ -119,6 +119,7 @@ library
     , process
     , optparse-applicative
     , diagnose
+    , wcwidth
 
   default-language:    Haskell2010
 
