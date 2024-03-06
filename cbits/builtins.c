@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include <termios.h>
+// #include <termios.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <assert.h>
@@ -7,7 +7,7 @@
 #include <errno.h>
 #include "builtins.h"
 
-struct termios orig_term = {};
+// struct termios orig_term = {};
 int orig_term_set = 0;
 
 int test_extern_int = 42;
@@ -101,33 +101,33 @@ void FORT_print_U64(uint64_t x)
   printf("%" PRIu64 "", x);
 }
 
-void termios_setRawMode()
-  {
-// https://viewsourcecode.org/snaptoken/kilo/02.enteringRawMode.html
-
-  tcgetattr(fileno(stdin), &orig_term);
-  orig_term_set = 1;
-  struct termios raw = orig_term;
-
-
-  raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-  raw.c_oflag &= ~(OPOST);
-  raw.c_cflag |= (CS8);
-  raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
-
-  raw.c_cc[VMIN] = 1; // set to zero for non-blocking
-  raw.c_cc[VTIME] = 0;
-
-  tcsetattr(fileno(stdin), TCSANOW, &raw);
-
-  }
-
-void termios_unsetRawMode()
-  {
- if (orig_term_set) {
-    tcsetattr(fileno(stdin), TCSANOW, &orig_term);
-    }
-  }
+// void termios_setRawMode()
+//   {
+// // https://viewsourcecode.org/snaptoken/kilo/02.enteringRawMode.html
+//
+//   tcgetattr(fileno(stdin), &orig_term);
+//   orig_term_set = 1;
+//   struct termios raw = orig_term;
+//
+//
+//   raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+//   raw.c_oflag &= ~(OPOST);
+//   raw.c_cflag |= (CS8);
+//   raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+//
+//   raw.c_cc[VMIN] = 1; // set to zero for non-blocking
+//   raw.c_cc[VTIME] = 0;
+//
+//   tcsetattr(fileno(stdin), TCSANOW, &raw);
+//
+//   }
+//
+// void termios_unsetRawMode()
+//   {
+//  if (orig_term_set) {
+//     tcsetattr(fileno(stdin), TCSANOW, &orig_term);
+//     }
+//   }
 
 int getTerminalSize() {
   struct winsize ws;

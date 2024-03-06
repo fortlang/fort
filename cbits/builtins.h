@@ -13,9 +13,9 @@ typedef double float64_t;
 
 int getErrno();
 
-void termios_setRawMode();
-void termios_unsetRawMode();
-int getTerminalSize();
+// void termios_setRawMode();
+// void termios_unsetRawMode();
+// int getTerminalSize();
 
 double clock_gettime_monotonic();
 
