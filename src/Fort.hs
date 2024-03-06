@@ -167,7 +167,7 @@ buildFn :: [Text] -> (FilePath, BuildType) -> IO ()
 buildFn bldAppend (fn, bt) = case bt of
   Exe -> do
     putStrLn $ exeFn fn ++ ": (exe)"
-    let cmd = unwords $ ["clang -O3 -o", exeFn fn, llvmFn fn] ++ fmap Text.unpack bldAppend
+    let cmd = unwords $ ["clang -O3 -o", exeFn fn, llvmFn fn] ++ fmap normalise (concat (fmap (words . Text.unpack) bldAppend))
     putStrLn cmd
     callCommand cmd
     putStrLn ""

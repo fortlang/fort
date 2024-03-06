@@ -41,7 +41,7 @@ simplifyModules ssb xs = sequence [ (fn, ) <$> mapM (simplifyFunc ssb) m | (fn, 
 
 traceEval :: (Positioned a, Pretty a) => a -> M b -> M b
 traceEval x m = do
-  tr <- lift $ gets stackTrace
+  tr <- lift$ gets stackTrace
   lift $ modify' $ \st -> st{ stackTrace = Posn (positionOf x) (pretty x) : stackTrace st }
   a <- m
   lift $ modify' $ \st -> st{ stackTrace = tr }
