@@ -10,7 +10,6 @@ extern char **FORT_argv;
 
 typedef float float32_t;
 typedef double float64_t;
-typedef _Float16 float16_t;
 
 int getErrno();
 
