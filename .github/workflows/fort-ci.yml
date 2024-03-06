@@ -13,7 +13,7 @@ jobs:
   build:
 
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 8
+    timeout-minutes: 10
     strategy:
       matrix:
         ghc: ['9.8.1', '9.8.2']
@@ -47,6 +47,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.ghc }}-
       - run: cabal build $CONFIG
-      - run: cabal run fort -- examples/helloworld.fort --run
-      # - run: cabal test $CONFIG
+      # - run: cabal run fort -- examples/helloworld.fort --run
+      - run: cabal test $CONFIG
       # - run: run-examples.sh
