@@ -1,2 +1,2 @@
-main = Prim.cast (Red, `F 16`)
+main = Prim.cast (Red, `F 32`)
 

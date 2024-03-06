@@ -242,7 +242,7 @@ evalType env x = case x of
       (XTyPointer pos, _) -> pure $ TyPointer pos tb
       (XTyChar pos, XTySizes _ (sz :| [])) -> pure $ TyChar pos sz
       (XTyFloat pos, XTySizes _ (sz :| [])) -> if
-        | sz `elem` [16, 32, 64] -> pure $ TyFloat pos sz
+        | sz `elem` [32, 64] -> pure $ TyFloat pos sz
         | otherwise -> err101 "unsupported Float size" b sz
       (XTyInt pos, XTySizes _ (sz :| [])) -> pure $ TyInt pos sz
       (XTyUInt pos, XTySizes _ (sz :| [])) -> pure $ TyUInt pos sz

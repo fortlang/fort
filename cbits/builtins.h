@@ -1,7 +1,7 @@
 #ifndef BUILTINS_H_
 #define BUILTINS_H_
 
-#include <stdint.h>
+#include <inttypes.h>
 
 extern int test_extern_int;
 
@@ -28,7 +28,6 @@ void FORT_print_C8(uint8_t x);
 
 void FORT_print_F64(float64_t x);
 void FORT_print_F32(float32_t x);
-void FORT_print_F16(float16_t x);
 
 void FORT_print_I8(int8_t x);
 void FORT_print_I16(int16_t x);

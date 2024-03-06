@@ -24,11 +24,6 @@ void FORT_print_Bool(int x)
   printf("%s", x ? "True" : "False");
 }
 
-void FORT_print_F16(float16_t x)
-{
-  printf("%f", (float64_t)x);
-}
-
 void FORT_print_F32(float32_t x)
 {
   printf("%0.9f", x);
@@ -59,11 +54,6 @@ void FORT_print_Pointer(char *x)
 void FORT_print_C8(uint8_t x)
 {
   printf("%c", x);
-}
-
-void FORT_print_U64(uint64_t x)
-{
-  printf("%llu", x);
 }
 
 void FORT_print_ENUM(uint32_t x)
@@ -103,7 +93,12 @@ void FORT_print_I32(int32_t x)
 
 void FORT_print_I64(int64_t x)
 {
-  printf("%lld", x);
+  printf("%" PRId64 "", x);
+}
+
+void FORT_print_U64(uint64_t x)
+{
+  printf("%" PRIu64 "", x);
 }
 
 void termios_setRawMode()
@@ -125,27 +120,10 @@ void termios_setRawMode()
 
   tcsetattr(fileno(stdin), TCSANOW, &raw);
 
-// printf("\x1B[?1049h"); // go into alt buffer
-//printf("\x1B[2J"); // clear the screen
-
-    /* int c = 0; */
-
-    /* while(c != 'q') { */
-    /*                   c = getchar(); */
-
-    /* } */
-
-
   }
 
 void termios_unsetRawMode()
   {
-    /* int c = 0; */
-    /* while(c != 'q') { */
-    /*                   c = getchar(); */
-
-    /* } */
-// printf("\x1B[?1049l"); // return from alt buffer
  if (orig_term_set) {
     tcsetattr(fileno(stdin), TCSANOW, &orig_term);
     }
@@ -163,7 +141,6 @@ int getTerminalSize() {
 }
 
 long getFileSize(char *filename) {
-// struct timespec st_mtimespec;  /* time of last data modification */
     struct stat file_status;
     if (stat(filename, &file_status) < 0) {
         return -1;

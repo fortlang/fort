@@ -268,9 +268,10 @@ match p0 x = case (p0, x) of
 
 traceEval :: (Positioned a, Pretty a) => a -> M b -> M b
 traceEval x m = do
+  tr <- gets stackTrace
   modify' $ \st -> st{ stackTrace = Posn (positionOf x) (pretty x) : stackTrace st }
   a <- m
-  modify' $ \st -> st{ stackTrace = tail $ stackTrace st }
+  modify' $ \st -> st{ stackTrace = tr }
   pure a
 
 err110ST :: (Positioned a, Pretty a, Positioned b, Pretty b) => Doc () -> a -> b -> M c
