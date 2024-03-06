@@ -20,6 +20,7 @@ import Fort.TypeChecker
 import Fort.Utils hiding (header) -- (Module, Decl'(..))
 import Options.Applicative
 import Paths_fort (version)
+import System.FilePath
 import System.Process
 import qualified Data.List as List
 import qualified Data.Map as Map
@@ -69,7 +70,7 @@ options = Options
 
 fort :: Options -> IO Int
 fort opts = do
-  let fns = files opts
+  let fns = fmap normalise $ files opts
   let mainNm = mainIs opts
   let doBuild = not (noBuild opts) || doRun opts
   let doGen = generateLLVM opts || doBuild
@@ -158,7 +159,7 @@ runExeFn (fn, bt) = do
   putStrLn $ exeFn fn
   case bt of
     Exe -> do
-      callCommand $ "./" ++ exeFn fn
+      callCommand $ exeFn fn
       putStrLn ""
     _ -> putStrLn "no .exe (no main found)"
 

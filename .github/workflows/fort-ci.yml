@@ -47,4 +47,4 @@ jobs:
             ${{ runner.os }}-${{ matrix.ghc }}-
       - run: cabal build $CONFIG
       - run: cabal test $CONFIG
-      - run: ./run-examples.sh
+      - run: run-examples.sh

@@ -16,14 +16,16 @@ main = do
       timed-test 5.0 n
 
 timed-test = \total-time n -> do
-  print "time is "
-  println total-time
-  print "n is "
-  println n
+  ;; print "time is "
+  ;; println total-time
+  ;; print "n is "
+  ;; println n
 
   ;; t0 = clock-gettime ()
 
   total-passes = 5000
+  print "number of passes is "
+  println total-passes
 
   passes = loop 0 $ \passes -> do
     ;; elapsed-time = clock-gettime () - t0
