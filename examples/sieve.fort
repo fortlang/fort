@@ -21,16 +21,19 @@ timed-test = \total-time n -> do
   print "n is "
   println n
 
-  t0 = clock-gettime ()
+  ;; t0 = clock-gettime ()
+
+  total-passes = 5000
 
   passes = loop 0 $ \passes -> do
-    elapsed-time = clock-gettime () - t0
+    ;; elapsed-time = clock-gettime () - t0
+      ;; elapsed-time >= total-time -> do
     if
-      elapsed-time >= total-time -> do
+      passes >= total-passes -> do
         print "passes = "
         println passes
-        print "elapsed time = "
-        println elapsed-time
+        ;; print "elapsed time = "
+        ;; println elapsed-time
 	Done ()
       otherwise -> do
         run-sieve n

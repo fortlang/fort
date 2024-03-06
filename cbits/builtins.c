@@ -1,14 +1,13 @@
-#include <stdio.h>
-// #include <termios.h>
-#include <sys/ioctl.h>
-#include <sys/stat.h>
-#include <assert.h>
-#include <time.h>
-#include <errno.h>
 #include "builtins.h"
+#include <errno.h>
+#include <stdio.h>
+// #include <sys/ioctl.h>
+// #include <sys/stat.h>
+// #include <termios.h>
+// #include <time.h>
 
 // struct termios orig_term = {};
-int orig_term_set = 0;
+// int orig_term_set = 0;
 
 int test_extern_int = 42;
 
@@ -27,13 +26,6 @@ void FORT_print_Bool(int x)
 void FORT_print_F32(float32_t x)
 {
   printf("%0.9f", x);
-}
-
-double clock_gettime_monotonic()
-{
-  struct timespec t;
-  clock_gettime(CLOCK_MONOTONIC, &t);
-  return t.tv_sec + t.tv_nsec*1e-9;
 }
 
 void FORT_print_F64(float64_t x)
@@ -101,6 +93,13 @@ void FORT_print_U64(uint64_t x)
   printf("%" PRIu64 "", x);
 }
 
+// double clock_gettime_monotonic()
+// {
+//   struct timespec t;
+//   clock_gettime(CLOCK_MONOTONIC, &t);
+//   return t.tv_sec + t.tv_nsec*1e-9;
+// }
+
 // void termios_setRawMode()
 //   {
 // // https://viewsourcecode.org/snaptoken/kilo/02.enteringRawMode.html
@@ -129,22 +128,22 @@ void FORT_print_U64(uint64_t x)
 //     }
 //   }
 
-int getTerminalSize() {
-  struct winsize ws;
-  int size;
-  if (ioctl(fileno(stdout), TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
-    return 0;
-  } else {
-    size = (ws.ws_col << 16) | (ws.ws_row & 0xffff);
-    return size;
-  }
-}
+// int getTerminalSize() {
+//   struct winsize ws;
+//   int size;
+//   if (ioctl(fileno(stdout), TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
+//     return 0;
+//   } else {
+//     size = (ws.ws_col << 16) | (ws.ws_row & 0xffff);
+//     return size;
+//   }
+// }
 
-long getFileSize(char *filename) {
-    struct stat file_status;
-    if (stat(filename, &file_status) < 0) {
-        return -1;
-    }
-
-    return file_status.st_size;
-}
+// long getFileSize(char *filename) {
+//     struct stat file_status;
+//     if (stat(filename, &file_status) < 0) {
+//         return -1;
+//     }
+//
+//     return file_status.st_size;
+// }

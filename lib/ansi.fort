@@ -74,7 +74,7 @@ alt-buf-mode = bracket set-alt-buf unset-alt-buf
 ~unset-alt-buf = esc "[?1049l"
 
 test = do
-  println get-terminal-size
+  ;; println get-terminal-size ;; BAL:
 
   ansi $ do
     print "this is "

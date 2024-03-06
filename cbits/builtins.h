@@ -17,7 +17,7 @@ int getErrno();
 // void termios_unsetRawMode();
 // int getTerminalSize();
 
-double clock_gettime_monotonic();
+// double clock_gettime_monotonic();
 
 void FORT_print_Bool(int x);
 void FORT_print_String(char *x);

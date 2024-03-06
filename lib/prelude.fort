@@ -223,7 +223,7 @@ round = Prim.round
 
 atoi = extern "atoi" `Pointer Char -> Int`
 
-clock-gettime = extern "clock_gettime_monotonic" `() -> Double`
+;; clock-gettime = extern "clock_gettime_monotonic" `() -> Double`
 
 inc = \p x -> p := @p + x
 operator += = inc infix -1.0
