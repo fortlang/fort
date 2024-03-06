@@ -134,4 +134,5 @@ test-suite tests
     , fort
     , directory
     , optparse-applicative
+    , filepath
     , prettyprinter

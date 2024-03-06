@@ -11,6 +11,7 @@ import Options.Applicative
 import Prelude
 import Prettyprinter
 import System.Directory
+import System.FilePath
 
 main :: IO ()
 main = do
@@ -18,11 +19,11 @@ main = do
     Failure f -> print f
     a -> unreachable "FortTests: help message" a
 
-  getFiles "test/eval" >>= mapM_ runFn
-  getFiles "test/multieval" >>= mapM_ runFn
-  getFiles "test/tcerr" >>= mapM_ runFnErr
-  getFiles "test/multierr" >>= mapM_ runFnErr
-  getFiles "test/tcerr" >>= mapM_ runFnNoTCErr
+  getFiles "eval" >>= mapM_ runFn
+  getFiles "multieval" >>= mapM_ runFn
+  getFiles "tcerr" >>= mapM_ runFnErr
+  getFiles "multierr" >>= mapM_ runFnErr
+  getFiles "tcerr" >>= mapM_ runFnNoTCErr
 
 expectNoError fn f = do
   r <- f
@@ -43,9 +44,10 @@ toOpts xs = case execParserPure defaultPrefs fortInfo xs of
   Success opts -> opts
   a -> unreachable "FortTests: toOpts" a
 
-getFiles dir = do
+getFiles dir0 = do
+  let dir = "test" </> dir0
   bs <- getDirectoryContents dir
-  pure $ fmap ((dir ++ "/") ++) $ sort $ filter (isSuffixOf ".fort") bs
+  pure $ fmap (dir </>) $ sort $ filter (isExtensionOf "fort") bs
 
 instance Pretty (ParserResult Options) where
   pretty = pretty . show
