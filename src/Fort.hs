@@ -20,11 +20,13 @@ import Fort.TypeChecker
 import Fort.Utils hiding (header) -- (Module, Decl'(..))
 import Options.Applicative
 import Paths_fort (version)
+import System.Exit
 import System.FilePath
 import System.Process
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Text as Text
+import System.IO.Error
 
 fortInfo :: ParserInfo Options
 fortInfo = info (options <**> simpleVersioner (showVersion version) <**> helper)
@@ -156,31 +158,32 @@ objFn fn = llvmFn fn <> ".o"
 runExeFn :: (FilePath, BuildType) -> IO ()
 runExeFn (fn, bt) = do
   putStrLn $ exeFn fn ++ ": (run)"
-  putStrLn $ exeFn fn
   case bt of
-    Exe -> do
-      callCommand $ exeFn fn
-      putStrLn ""
+    Exe -> doCallCommand (exeFn fn) []
     _ -> putStrLn "no .exe (no main found)"
+
+doCallCommand :: FilePath -> [String] -> IO ()
+doCallCommand nm xs = do
+  let cmd = showCommandForUser nm xs
+  putStrLn cmd
+  eea <- try $ system cmd
+  case eea of
+    Left (_ :: IOError) -> ioError $ mkIOError userErrorType (cmd ++ ": (unexpected system exception)") Nothing Nothing
+    Right a -> case a of
+      ExitSuccess -> pure ()
+      ExitFailure r -> ioError $ mkIOError userErrorType (cmd ++ ": (exit " ++ show r ++ ")") Nothing Nothing
 
 buildFn :: [Text] -> (FilePath, BuildType) -> IO ()
 buildFn bldAppend (fn, bt) = case bt of
   Exe -> do
     putStrLn $ exeFn fn ++ ": (exe)"
-    let cmd = unwords $ ["clang -O3 -o", exeFn fn, llvmFn fn] ++ fmap normalise (concat (fmap (words . Text.unpack) bldAppend))
-    putStrLn cmd
-    callCommand cmd
-    putStrLn ""
+    doCallCommand "clang" $ ["-O3", "-o", exeFn fn, llvmFn fn] ++ fmap normalise (concat (fmap (words . Text.unpack) bldAppend))
   Obj -> do
     putStrLn $ llvmFn fn ++ ": (obj)"
-    let cmd = unwords $ ["clang -O3 -c -o", objFn fn, llvmFn fn]
-    putStrLn cmd
-    callCommand cmd
-    putStrLn ""
+    doCallCommand "clang" ["-O3", "-c", "-o", objFn fn, llvmFn fn]
   NoCode -> do
     putStrLn $ fn ++ ": (no code)"
     putStrLn "no .exe/.o (no main or exported functions found)"
-
 
 writeFnDoc :: (FilePath -> FilePath) -> (FilePath, Doc ann) -> IO ()
 writeFnDoc f (fn, d) = do
