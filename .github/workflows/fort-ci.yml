@@ -47,6 +47,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.ghc }}-
       - run: cabal build $CONFIG
-      # - run: cabal run fort -- examples/helloworld.fort --run
-      - run: cabal test $CONFIG
+      - run: cabal run fort -- examples/helloworld.fort --run
+      # - run: cabal test $CONFIG
       # - run: run-examples.sh
