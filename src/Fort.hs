@@ -164,9 +164,8 @@ runExeFn (fn, bt) = do
 
 doCallCommand :: FilePath -> [String] -> IO ()
 doCallCommand nm xs = do
-  let cmd = showCommandForUser nm xs
-  putStrLn cmd
-  eea <- try $ system cmd
+  let cmd = unwords (nm : xs)
+  eea <- try $ rawSystem nm xs
   case eea of
     Left (_ :: IOError) -> ioError $ mkIOError userErrorType (cmd ++ ": (unexpected system exception)") Nothing Nothing
     Right a -> case a of
