@@ -18,7 +18,8 @@ jobs:
       matrix:
         ghc: ['9.8.1', '9.8.2']
         cabal: ['3.10.2.1']
-        os: [windows-latest]
+        # os: [windows-latest]
+        os: [macos-latest, ubuntu-latest]
         exclude:
           - ghc: 9.8.1
             os: ubuntu-latest
