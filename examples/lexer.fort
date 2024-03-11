@@ -60,8 +60,6 @@ op-char : `RE` =
 
 comment : `RE` = char ';' >>> char ';' >>> rest-of-line >>> accept Comment
 
-rest-of-line = many (satisfy (not-equal nl))
-
 number : `RE` = hexidecimal ||| octal ||| binary ||| decimal
 
 lident : `RE` = lower >>> many ident-char >>> (keywords lident-keywords ||| accept LIdent)

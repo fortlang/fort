@@ -152,7 +152,7 @@ unionVals x y = case (x, y) of
   (VSum pos k bs, VSum _ l cs) -> VSum pos <$> unionVals k l <*> unionWithM (joinSumDataVals unionVals) bs cs
   (VPtr pos t a, VPtr _ _ b) -> VPtr pos t <$> unionVals a b
   (VIndexed pos t sz a, VIndexed _ _ _ b) -> VIndexed pos t sz <$> unionVals a b
-  (XVNone{}, _) -> pure x
+  (XVNone{}, _) -> pure x -- BAL: should this be pure y?
   (VUnit{}, _) -> pure x
   _ | isRegisterVal x -> pure x
   _ -> unreachable110 "unable to union values" x y
@@ -467,7 +467,7 @@ instance Pretty Val where
   pretty x = case x of
     XVLam{} -> "<lambda>"
     XVDelay{} -> "<delay>"
-    XVTailRecDecls{} -> "<tailrecdecls>"
+    XVTailRecDecls _ _ m n -> "<tailrecdecls ="<+> pretty n <+> pretty m <> ">"
     XVTailCall{} -> "<tailcall>"
     XVNone{} -> "<no value>"
     XVCall _ v -> "<call" <+> pretty v <> ">"

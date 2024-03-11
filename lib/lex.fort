@@ -143,3 +143,6 @@ followed-by : `RE -> RE -> RE` = \f g -> \st -> case f st of
   Err -> Err
   Ok st' -> g st'
 
+rest-of-line = many (satisfy (not-equal nl))
+
+

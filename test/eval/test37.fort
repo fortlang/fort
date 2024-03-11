@@ -28,17 +28,6 @@ from-ok = \a0 x -> case x of
   Ok a -> a
   _ -> a0
 
-loop = \a0 ~f -> do
-  tailrec
-    go = \a -> case f a of
-      Continue a' -> go a'
-      Done b -> b
-  go a0
-
-println = \a -> do
-  print a
-  print '\n'
-
 main = do
   sk = init `Array 3 Char`
   debug sk

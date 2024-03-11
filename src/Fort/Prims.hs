@@ -256,10 +256,10 @@ primCalls = Map.fromList $ fmap f
   , ("Prim.ne", \_ v -> pairFun neVal v)
   , ("Prim.exit", \_ v -> exitPrim v)
   , ("Prim.neg", \_ v -> negVal v)
-  , ("Prim.lt", \_ -> pairFun $ boolCall2Syn "lt")
-  , ("Prim.gt", \_ -> pairFun $ boolCall2Syn "gt")
-  , ("Prim.lte", \_ -> pairFun $ boolCall2Syn "lte")
-  , ("Prim.gte", \_ -> pairFun $ boolCall2Syn "gte")
+  , ("Prim.lt", \_ -> pairFun $ boolCall2SynPure "lt")
+  , ("Prim.gt", \_ -> pairFun $ boolCall2SynPure "gt")
+  , ("Prim.lte", \_ -> pairFun $ boolCall2SynPure "lte")
+  , ("Prim.gte", \_ -> pairFun $ boolCall2SynPure "gte")
 
   , ("Prim.add", \_ -> pairFun $ idCall2Syn "add")
   , ("Prim.sub", \_ -> pairFun $ idCall2Syn "sub")
@@ -304,22 +304,30 @@ idCall2Syn n x y = fun t nm $ VTuple pos $ fromList2 [x, y]
   t = typeOf x
   pos = positionOf x
 
-boolCall2Syn :: Text -> Val -> Val -> M Val
-boolCall2Syn n x y = fun (TyBool pos) nm $ VTuple pos $ fromList2 [x, y]
+pureF :: M a -> M a
+pureF m = do
+  r <- gets isPure
+  modify' $ \st -> st{ isPure = False }
+  a <- m
+  modify' $ \st -> st{ isPure = r }
+  pure a
+
+boolCall2SynPure :: Text -> Val -> Val -> M Val
+boolCall2SynPure n x y = pureF $ fun (TyBool pos) nm $ VTuple pos $ fromList2 [x, y]
   where
   nm = "FORT_" <> n <> "_" <> toString (intTySyn t)
   t = typeOf x
   pos = positionOf x
 
 gte :: Val -> Val -> M Val
-gte = boolCall2Syn "gte"
+gte = boolCall2SynPure "gte"
 
 lt :: Val -> Val -> M Val
-lt = boolCall2Syn "lt"
+lt = boolCall2SynPure "lt"
 
 loadScalarVal :: Val -> M Val
 loadScalarVal x = case typeOf x of
-  TyPointer pos t | isRegisterTy t -> fun t nm x
+  TyPointer _ t | isRegisterTy t -> fun t nm x
     where
     nm = "FORT_" <> "load" <> "_" <> toString (intTySyn t)
   t -> err111 "unexpected type to 'load'" x t noTCHint
@@ -364,7 +372,7 @@ toString t = case t of
   TyEnum{} -> "i32"
   TyString{} -> "ptr"
   TyBool{} -> "i1"
-  _ -> error $ "BAL:" ++ show (pretty t)
+  _ -> unreachable "toString: expected register type" t
 
 exitPrim :: Val -> M Val
 exitPrim v = fun1 (const $ TyUnit pos) "Prim.exit" v
@@ -421,7 +429,7 @@ neVal x y = case (x, y) of
   (VSum pos b m, VSum _ c n) | isValEnum b && isValEnum c -> do
       eqv <- eqVal b c
       evalIf eqv (evalSumAlts b m $ neSumDataVals n) (pure $ VScalar pos $ VBool pos True)
-  _ | isRegisterVal x && isRegisterVal y -> boolCall2Syn "neq" x y
+  _ | isRegisterVal x && isRegisterVal y -> boolCall2SynPure "neq" x y
   _ -> err111 "unexpected values to Prim.ne" x y noTCHint
 
 eqSumDataVals :: Map UIdent (Maybe Val) -> (UIdent, Maybe Val) -> M Val
@@ -443,7 +451,7 @@ eqVal x y = case (x, y) of
   (VSum pos b m, VSum _ c n) | isValEnum b && isValEnum c -> do
     eqv <- eqVal b c
     evalIf eqv (evalSumAlts b m $ eqSumDataVals n) (pure $ VScalar pos $ VBool pos False)
-  _ | isRegisterVal x && isRegisterVal y -> boolCall2Syn "equ" x y
+  _ | isRegisterVal x && isRegisterVal y -> boolCall2SynPure "equ" x y
   _ -> err111 "unexpected values to Prim.eq" x y noTCHint
 
 appendBuild :: Val -> M Val
@@ -776,7 +784,6 @@ casttoCall n x ty = fun ty nm x
   where
   nm = "FORT_" <> n <> "_" <> toString (charTySyn t) <> "_" <> toString (charTySyn ty)
   t = typeOf x
-  pos = positionOf x
 
 charTySyn :: Ty -> Ty
 charTySyn x = case x of
@@ -788,7 +795,6 @@ casttoCallSyn n x ty = fun ty nm x
   where
   nm = "FORT_" <> n <> "_" <> toString (intTySyn t) <> "_" <> toString (intTySyn ty)
   t = typeOf x
-  pos = positionOf x
 
 isPointerTy :: Ty -> Bool
 isPointerTy x = case x of
@@ -861,7 +867,7 @@ dynCall rt nm x = case rt of
     TyPointer{} -> VScalar pos . VPointer pos rt <$> f (retPtr retVoid)
     TyBool{} -> do
       r <- f retWord8
-      pure $ VScalar pos $ VBool pos $ if r == 0 then False else True
+      pure $ VScalar pos $ VBool pos $ r /= 0
     TyString{} -> do
       r <- f retCString
       VScalar pos . VString pos . Text.pack <$> liftIO (peekCString r)
@@ -887,7 +893,7 @@ getDynLib = do
   mdl <- gets mDynLib
   case mdl of
     Nothing -> do
-      dl <- liftIO $ dlopen "fort-instrs.0.dylib" []
+      dl <- liftIO $ dlopen "fort-ffi.dylib" []
       modify' $ \st -> st{ mDynLib = Just dl }
       pure dl
     Just dl -> pure dl
@@ -918,20 +924,21 @@ valToArgs x = case x of
           VUInt32 b -> pure $ argWord32 b
           VUInt64 b -> pure $ argWord64 b
         VUndef{} -> err100 "undefined value encountered during compile time evaluation" v
+        VEnum _ _ i -> pure $ argWord32 $ fromInteger i
         _ -> err100 "unexpected scalar value encountered during compile time evaluation" v
       _ -> err100 "unexpected value encountered during compile time evaluation" v
 
 fun :: Ty -> Text -> Val -> M Val
 fun rt nm v = if
---   | isExternArgTy (typeOf v) && isExternResultTy rt -> do
---       isP <- gets isPure
---       if isP
---         then do
---           isFE <- isFullyEvaluated v
---           if isFE
---             then dynCall rt nm v -- BAL: do this for prims too (not just dynamic c functions)
---             else ok
---         else ok
+  | isExternArgTy (typeOf v) && isExternResultTy rt -> do
+      isP <- gets isPure
+      if isP
+        then do
+          isFE <- isFullyEvaluated v
+          if isFE
+            then dynCall rt nm v
+            else ok
+        else ok
   | otherwise -> ok
   where
     ok = case rt of

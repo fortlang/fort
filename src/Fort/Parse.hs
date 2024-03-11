@@ -16,18 +16,18 @@ parseModule showLexemes myLexer resolveLayout pModule fn = do
   when showLexemes $ mapM_ print $ myLexer s
   case pModule $ resolveLayout True $ myLexer s of
     Left msg -> throwIO $ parserErrToErr fn msg
-    Right a -> pure (fmap (pair (Just fn)) a)
+    Right a -> pure (fmap (Position (Just fn)) a)
 
 parserErrToErr :: FilePath -> String -> UserException
 parserErrToErr fn msg = case dropWhile ("line" /=) $ words msg of
   _:ln:rest -> case dropWhile ("column" /=) rest of
-    _:col:rest' -> dflt{ thiss = [ (pretty $ unwords rest', (Just fn, Just (read $ init ln, read col))) ] }
+    _:col:rest' -> dflt{ thiss = [ (pretty $ unwords rest', Position (Just fn) (Just (read $ init ln, read col))) ] }
     _ -> dflt
   _ -> dflt
   where
     dflt = UserException
       { header = "syntax error"
-      , thiss = [(pretty msg, (Just fn, Just (0, 1)))]
+      , thiss = [(pretty msg, Position (Just fn) (Just (0, 1)))]
       , wheres = mempty
       , hints = mempty
       }

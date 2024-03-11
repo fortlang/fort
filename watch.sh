@@ -2,7 +2,7 @@ if [ -z $1 ]
 then
 cmd="rm -f fort.tix; cabal test";
 else
-cmd="rm -f fort.tix; cabal run fort -- --run $1 --show-llvm";
+cmd="rm -f fort.tix; cabal run fort -- --run $@";
 fi
 
 eval $cmd

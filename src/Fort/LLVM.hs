@@ -68,7 +68,7 @@ llvmDeclares nms strs m = vcat
 unTyPointer :: Ty -> Ty
 unTyPointer x = case x of
   TyPointer _ t -> t
-  _ -> error "BAL: undefined"
+  _ -> unreachable "unTyPointer: expected global to have pointer type" x
 
 globals :: [Block] -> [Register]
 globals m = List.nubBy (\a b -> registerId a == registerId b) [ reg | Register _ reg <- universeBi m, registerIsGlobal reg ]

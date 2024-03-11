@@ -5,22 +5,26 @@ myloop = \i0 -> do
       exit 0
   go i0
 
+type MInt = Sum
+  Nothing
+  Just: Int
+
 myloop2 = \i0 -> do
   tailrec
-    go = \ma -> case ma of
+    go = \ma -> case (ma : `MInt`) of
       Nothing -> println "done"
       Just i -> do
         print i
 	print ' '
 	if
-	  i == 0 -> go Nothing
-	  True -> go (Just (i - 1))
+	  i == 0 -> go $ cast Nothing `MInt`
+	  True -> go $ cast (Just (i - 1)) `MInt`
 
-  go (Just i0)
+  go $ cast (Just i0) `MInt`
 
 main = do
-  ;; println (myloop2 2) BAL: causes an error but not caught by typechecker
-  ;; _ = myloop2 2 BAL: causes an error but not caught by typechecker
+  println (myloop2 2) ;; BAL: without casting causes an error but not caught by typechecker
+  _ = myloop2 2 ;; BAL: without casting causes an error but not caught by typechecker
   myloop 3
 
 qualifier Prelude = "lib/prelude.fort"

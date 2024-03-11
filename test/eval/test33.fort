@@ -1,10 +1,3 @@
-loop = \a0 ~f -> do
-  tailrec
-    go = \a -> case f a of
-      Continue a' -> go a'
-      Done b -> b
-  go a0
-
 main = do
   loop 0 $ \i -> case i of
     5 -> Done ()

@@ -588,10 +588,10 @@ data TailRecDecl a
   deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 toTailRecDecl :: MonadIO m => Abs.TailRecDecl' Position -> m (TailRecDecl Position)
-toTailRecDecl (Abs.TailRecDecl a b c d) = TailRecDecl a <$> toLIdent b <*> toLIdent c <*> toExp d
+toTailRecDecl (Abs.TailRecDecl a b v c) = TailRecDecl a <$> toLIdent b <*> toLIdent v <*> toExp c
 
 instance Pretty (TailRecDecl a) where
-  pretty (TailRecDecl _ b c d) = pretty b <+> "=" <+> "\\" <+> binop "->" c d
+  pretty (TailRecDecl _ b v c) = pretty b <+> "=" <+> "\\" <+> pretty v <+> "->" <+> pretty c
 
 data TailRecDecls a = TailRecDecls a (NonEmpty (TailRecDecl a))
   deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)

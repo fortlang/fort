@@ -107,7 +107,7 @@ bracket = \pre post f -> do
   _ = post
   a
 
-loop = \a0 ~f -> do
+loop = \a0 f -> do
   tailrec
     go = \a -> case f a of
       Continue a' -> go a'

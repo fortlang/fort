@@ -99,6 +99,8 @@ fort opts = do
           when (showDependencies opts) $ mapM_ (pp "(deps)") msdeps
           when doSimplify $ do
             unless (noTypeChecker opts) $ typeCheckModules msdeps
+            bldCmd <- toCallCommandArgs <$> simplifyBuildDecls (runTimeChecks opts) bldds
+            doCallCommand "clang" $ ["-dynamiclib", "-o", "fort-ffi.dylib"] ++ bldCmd
             msstmts <- simplifyModules (runTimeChecks opts) msdeps
             
             when (showSimplify opts) $ mapM_ (pp "(simplify)") msstmts
@@ -112,7 +114,6 @@ fort opts = do
                   mapM_ (writeFnDoc llvmFn) $ fmap (fmap snd) msllvm
                   when doBuild $ do
                     unless (noTypeChecker opts) $ typeCheckDecls bldds
-                    bldCmd <- simplifyBuildDecls (runTimeChecks opts) bldds
                     mapM_ (buildFn bldCmd) $ fmap (fmap fst) msllvm
                     when (doRun opts) $ mapM_ runExeFn $ fmap (fmap fst) msllvm
     pure 0
@@ -166,11 +167,14 @@ doCallCommand nm xs = do
   putStrLn cmd
   callCommand cmd
 
-buildFn :: [Text] -> (FilePath, BuildType) -> IO ()
+toCallCommandArgs :: [Text] -> [String]
+toCallCommandArgs t = fmap normalise (concat (fmap (words . Text.unpack) t))
+
+buildFn :: [String] -> (FilePath, BuildType) -> IO ()
 buildFn bldAppend (fn, bt) = case bt of
   Exe -> do
     putStrLn $ exeFn fn ++ ": (exe)"
-    doCallCommand "clang" $ ["-O3", "-flto", "-o", exeFn fn, llvmFn fn] ++ fmap normalise (concat (fmap (words . Text.unpack) bldAppend))
+    doCallCommand "clang" $ ["-O3", "-flto", "-o", exeFn fn, llvmFn fn] ++ bldAppend
   Obj -> do
     putStrLn $ llvmFn fn ++ ": (obj)"
     doCallCommand "clang" ["-O3", "-c", "-o", objFn fn, llvmFn fn]

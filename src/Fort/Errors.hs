@@ -1,7 +1,10 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric #-}
+
 module Fort.Errors
 ( HasText
 , Location
-, Position
+, Position(..)
 , Positioned
 , UserException(..)
 , Posn(..)
@@ -47,12 +50,16 @@ import Prettyprinter
 import System.IO
 import qualified Data.List as List
 import qualified Error.Diagnose as Diagnose
+import Data.Data (Data, Typeable)
+import GHC.Generics (Generic)
 
-type Position = (Maybe FilePath, Maybe Location)
+data Position = Position (Maybe FilePath) (Maybe Location)
+  deriving (Show, Eq, Ord, Data, Typeable, Generic)
+
 type Location = (Int, Int)
 
 noPosition :: Position
-noPosition = (Nothing, Nothing)
+noPosition = Position Nothing Nothing
 
 noPos :: a -> Posn a
 noPos = Posn noPosition
@@ -83,6 +90,16 @@ class Positioned a where
 
 data Posn a = Posn Position a
   deriving Eq
+
+instance Pretty Position where
+  pretty (Position mfn mloc) = fn <> "@" <> ln <> ":" <> col
+    where
+      fn = case mfn of
+        Nothing -> "<nofile>"
+        Just a -> pretty a
+      (ln, col) = case mloc of
+        Nothing -> ("<noline>", "<nocolumn>")
+        Just (a, b) -> (pretty a, pretty b)
 
 instance Positioned (Posn a) where
   positionOf (Posn pos _) = pos
@@ -156,7 +173,7 @@ outputSystemError x = do
 outputErrorReport :: Bool -> UserException -> IO Int
 outputErrorReport _ (UserException _ [] _ _) = error "unexpected user exception with empty messages"
 outputErrorReport basicOutput (UserException hdr bs cs ds) = do
-  let fns = List.nub [ fn | (_, (Just fn, _)) <- bs ++ cs ]
+  let fns = List.nub [ fn | (_, (Position (Just fn) _)) <- bs ++ cs ]
   let addFile d fn = Diagnose.addFile d fn <$> readFile fn
   dfile :: Diagnose.Diagnostic String <- foldM addFile Diagnose.def fns
 
@@ -176,7 +193,7 @@ addReport diag (hdr, (msg, pos), whrs, hnts) = do
   pure $ Diagnose.addReport diag e
 
 toDiagnosePosition :: Position -> IO Diagnose.Position
-toDiagnosePosition (mfn, mbegin) = do
+toDiagnosePosition (Position mfn mbegin) = do
   end <- case (mfn, mbegin) of
     (Just{}, Just{}) -> getPositionEnd fn begin
     _ -> pure begin

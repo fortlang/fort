@@ -1,0 +1,9 @@
+qualifier Prelude = "lib/prelude.fort"
+
+main = do
+  if
+    True -> println "if is evaluated"
+    False -> println "not in generated code"
+  if
+    1 > 0 -> println "also evaluated"
+    otherwise -> println "also not in generated code"

@@ -91,6 +91,16 @@ mkTailRecTyFun :: Ty -> Ty
 mkTailRecTyFun t = TyFun pos t $ TyNone pos
   where pos = positionOf t
 
+evalTailRecDecl :: TyEnv -> Ty -> TailRecDecl -> [TailRecDecl] -> M Ty
+evalTailRecDecl env tv (TailRecDecl _ nm v e) ds = do
+  let env' = Map.fromList [ (nm, mkTailRecTyFun tv), (v, tv) ]
+  unkEnv <- Map.fromList <$> mapM mkU (fmap tailRecDeclNm ds)
+  eval (env' <> unkEnv <> env) e
+    where
+      mkU n = do
+        t <- freshTyUnknown n
+        pure (n, mkTailRecTyFun t)
+
 evalTailRecDecls :: TyEnv -> LIdent -> Ty -> NonEmpty TailRecDecl -> M Ty
 evalTailRecDecls env nm t = goTailRecDecls mempty env [(nm, t)] . toList
 
@@ -112,16 +122,6 @@ popConstraints = do
   cs <- Map.elems <$> gets constraints
   modify' $ \st -> st{ constraints = mempty }
   pure cs
-
-evalTailRecDecl :: TyEnv -> Ty -> TailRecDecl -> [TailRecDecl] -> M Ty
-evalTailRecDecl env tv (TailRecDecl _ nm v e) ds = do
-  let env' = Map.fromList [ (nm, mkTailRecTyFun tv), (v, tv) ]
-  unkEnv <- Map.fromList <$> mapM mkU (fmap tailRecDeclNm ds)
-  eval (env' <> unkEnv <> env) e
-    where
-      mkU n = do
-        t <- freshTyUnknown n
-        pure (n, mkTailRecTyFun t)
 
 pushConstraint :: LIdent -> Int -> Ty -> M ()
 pushConstraint nm i pt = do
@@ -290,12 +290,14 @@ err111ST :: (Positioned a, Pretty a, Pretty b, Positioned b, Pretty c) => Doc ()
 err111ST msg a b c = stackTraceHint >>= \stHint -> Err.err111 msg a b (show (pretty c) : stHint)
 
 getStackTraceLine :: Positioned a => a -> IO String
-getStackTraceLine x = case positionOf x of
-  (Just fn, Just (j, i)) -> do
-    let s0 = fn ++ "@" ++ show j ++ ":" ++ show i
-    s <- getLineAt fn j
-    pure (s0 ++ ":  " ++ s)
-  _ -> pure "<noposition>"
+getStackTraceLine x = do
+  let pos = positionOf x
+  let s0 = show $ pretty pos
+  case pos of
+    Position (Just fn) (Just (j, _)) -> do
+      s <- getLineAt fn j
+      pure (s0 ++ ":  " ++ s)
+    _ -> pure s0
 
 stackTraceHint :: M [String]
 stackTraceHint = do
@@ -311,11 +313,11 @@ stackTraceHint = do
     declutter = List.reverse . fmap (last . List.sortBy maxCol) . List.groupBy lineNum
       where
         lineNum a b = case (positionOf a, positionOf b) of
-          ((Just fna, Just (ja, _)), (Just fnb, Just (jb, _))) -> fna == fnb && ja == jb
+          (Position (Just fna) (Just (ja, _)), Position (Just fnb) (Just (jb, _))) -> fna == fnb && ja == jb
           (pa, pb) -> pa == pb
 
         maxCol a b = case (positionOf a, positionOf b) of
-              ((_, Just (_, ia)), (_, Just (_, ib))) -> compare ia ib
+              (Position _ (Just (_, ia)), Position _ (Just (_, ib))) -> compare ia ib
               (pa, pb) -> compare pa pb
 
 eval :: TyEnv -> Exp -> M Ty

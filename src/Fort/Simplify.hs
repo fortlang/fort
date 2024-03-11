@@ -192,15 +192,6 @@ pushTailCall x y =
 evalBlock :: Env -> Exp -> M Block
 evalBlock env x = evalBlockM (eval env x)
 
-evalTailRecBlock :: Env -> Exp -> M Block
-evalTailRecBlock env e = do
-  tcs0 <- gets tailcalls
-  modify' $ \st -> st{ tailcalls = [] }
-  blk <- evalBlock env e
-  tcs <- gets tailcalls
-  modify' $ \st -> st{ tailcalls = tcs0 }
-  pure $ blk { blockTailCalls = tcs }
-
 evalXVTailRecDecls :: Env -> Map LIdent TailRecDecl -> LIdent -> Val -> M (TailCallId, [(TailCallId, (Val, Block))])
 evalXVTailRecDecls env m0 nm0 val0 = do
   bs <- sequence [ ((v, d),) <$> freshTailCallId v | (v, d) <- Map.toList m0 ]
@@ -212,7 +203,9 @@ evalXVTailRecDecls env m0 nm0 val0 = do
     tcid : _ -> (tcid, ) <$> evalXVTailRecDecls' (env' <> env) m tcid val0
 
 evalXVTailRecDecls' :: Env -> Map TailCallId TailRecDecl -> TailCallId -> Val -> M [(TailCallId, (Val, Block))]
-evalXVTailRecDecls' env m0 tcid0 val0 = go m0 [(tcid0, val0)]
+evalXVTailRecDecls' env m0 tcid0 val0 = do
+  r <- go m0 [(tcid0, val0)]
+  pure r
   where
   go _ [] = pure []
   go m ((tcid, val) : rest) = case Map.lookup tcid m of
@@ -227,6 +220,15 @@ evalTailRecDecls env (TailRecDecls pos ds) =
   Map.mapWithKey (\k _ -> XVTailRecDecls pos env m k) m
   where
     m = Map.fromList [ (nm, b) | b@(TailRecDecl _ nm _ _) <- toList ds ]
+
+evalTailRecBlock :: Env -> Exp -> M Block
+evalTailRecBlock env e = do
+  tcs0 <- gets tailcalls
+  modify' $ \st -> st{ tailcalls = [] }
+  blk <- evalBlock env e
+  tcs <- gets tailcalls
+  modify' $ \st -> st{ tailcalls = tcs0 }
+  pure $ blk { blockTailCalls = tcs }
 
 evalFieldDecl :: Env -> FieldDecl -> M (LIdent, Val)
 evalFieldDecl env (FieldDecl _ lbl e) = (lbl, ) <$> eval env e
@@ -259,7 +261,9 @@ evalExpDecls = go
 evalExpDecl :: Env -> ExpDecl -> M Env
 evalExpDecl env x = case x of
   Binding _ p e -> evalBinding env p e
-  TailRec _ a -> pure $ evalTailRecDecls env a
+  TailRec _ a -> do
+    let env' = evalTailRecDecls env a
+    pure env'
 
 freshTailCallId :: LIdent -> M TailCallId
 freshTailCallId v = do
@@ -336,7 +340,9 @@ eval env x = traceEval x $ case x of
 
     Case _ a bs -> do
       va <- eval env a
-      evalCaseAlts [] env va $ toList bs
+      case va of
+        XVNone{} -> err111ST "unexpected case value" va a (typeOf va)
+        _ -> evalCaseAlts [] env va $ toList bs
 
     Do pos (c :| cs) -> case cs of
       [] -> case c of
