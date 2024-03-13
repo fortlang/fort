@@ -39,8 +39,8 @@ primCallTys = Map.fromList $ fmap f
   , ("Prim.index", isPair indexTC)
   , ("Prim.store", isPair storeTC)
   , ("Prim.assert", isPair assertTC)
-  , ("Prim.eq", isPair eq)
-  , ("Prim.ne", isPair eq)
+  , ("Prim.eq", isPair eqTC)
+  , ("Prim.ne", isPair eqTC)
   , ("Prim.exit", exit)
   , ("Prim.neg", neg)
   , ("Prim.add", isPair $ isSameSz arith)
@@ -70,9 +70,32 @@ primCallTys = Map.fromList $ fmap f
   , ("Prim.memmove", isTriple memmoveTC)
   , ("Prim.memset", isTriple memsetTC)
   , ("Prim.append-build", appendBuildTC)
+  , ("Prim.insert-element", isTriple insertElementTC)
+  , ("Prim.typeof-element", typeofElementTC)
+  , ("Prim.select", isTriple selectTC)
+  , ("Prim.reduce-min", reduceMinTC)
   ]
   where
     f (nm, g) = (nm, g)
+
+reduceMinTC :: Ty -> Err Ty
+reduceMinTC x = case x of
+  TyVector _ _ t -> pure t
+  _ -> throwError "expected vector type"
+
+selectTC :: Ty -> Ty -> Ty -> Err Ty
+selectTC a b c = case (a, b, c) of
+  (TyVector _ sza ta, TyVector _ szb tb, TyVector _ szc tc) | sza == szb && szb == szc && ta == tb && tb == tc -> pure b
+  -- BAL: ^ break this up to give better errors
+  _ -> throwError "unexpected inputs to 'select'"
+
+insertElementTC :: Ty -> Ty -> Ty -> Err Ty
+insertElementTC a b c = case a of
+  TyVector _ _ t -> if
+    | c /= t -> throwError "element doesn't match vector element type"
+    | isI32Ty b -> pure a
+    | otherwise -> throwError "expected i32 index"
+  _ -> throwError "expected vector type"
 
 isTriple :: (Ty -> Ty -> Ty -> Err a) -> Ty -> Err a
 isTriple f x = case x of
@@ -81,6 +104,9 @@ isTriple f x = case x of
 
 isI32orI64Ty :: Ty -> Bool
 isI32orI64Ty x = isIntTy x && (bitsize x == 32 || bitsize x == 64)
+
+isI32Ty :: Ty -> Bool
+isI32Ty x = isIntTy x && bitsize x == 32
 
 isI8Ty :: Ty -> Bool
 isI8Ty x = isIntTy x && bitsize x == 8
@@ -151,7 +177,7 @@ loadTC :: Ty -> Err Ty
 loadTC x0 = case x0 of
   TyPointer _ TyArray{} -> throwError "unable to 'load' values of array type"
   TyPointer _ t | isAllocaTy t -> go t
-  _ -> throwError "expected type to 'load'"
+  _ -> throwError "unexpected type to 'load'"
   where
     go x = case x of
       TyTuple pos ps -> TyTuple pos <$> mapM go ps
@@ -161,9 +187,11 @@ loadTC x0 = case x0 of
       _ | isRegisterTy x -> pure x
       _ -> throwError "unexpected type of value to 'load'"
 
-eq :: Ty -> Ty -> Err Ty
-eq a b = if
-  | a == b -> pure $ TyBool $ positionOf a
+eqTC :: Ty -> Ty -> Err Ty
+eqTC a b = if
+  | a == b -> case a of
+      TyVector{} -> pure a
+      _ -> pure $ TyBool $ positionOf a
   | otherwise -> throwError "expected the input values to have the same type"
 
 exit :: Ty -> Err Ty
@@ -287,6 +315,10 @@ primCalls = Map.fromList $ fmap f
   , ("Prim.memmove", \_ -> tripleFun $ memCall "memmove")
   , ("Prim.memset", \_ -> tripleFun $ memCall "memset")
   , ("Prim.append-build", \_ -> appendBuild)
+  , ("Prim.insert-element", \_ -> tripleFun insertElement)
+  , ("Prim.typeof-element", \_ -> typeofElement)
+  , ("Prim.select", \_ -> tripleFun select)
+  , ("Prim.reduce-min", \_ -> reduceMin)
   ]
   where
     f (n, g) = (n, g n)
@@ -313,11 +345,14 @@ pureF m = do
   pure a
 
 boolCall2SynPure :: Text -> Val -> Val -> M Val
-boolCall2SynPure n x y = pureF $ fun (TyBool pos) nm $ VTuple pos $ fromList2 [x, y]
+boolCall2SynPure n x y = pureF $ fun rt nm $ VTuple pos $ fromList2 [x, y]
   where
   nm = "FORT_" <> n <> "_" <> toString (intTySyn t)
   t = typeOf x
   pos = positionOf x
+  rt = case t of
+    TyVector{} -> t
+    _ -> TyBool pos
 
 gte :: Val -> Val -> M Val
 gte = boolCall2SynPure "gte"
@@ -331,6 +366,28 @@ loadScalarVal x = case typeOf x of
     where
     nm = "FORT_" <> "load" <> "_" <> toString (intTySyn t)
   t -> err111 "unexpected type to 'load'" x t noTCHint
+
+reduceMin :: Val -> M Val
+reduceMin x = case t of
+  TyVector _ _ a -> fun a nm x
+  _ -> err111 "unexpected type to 'reduce-min'" x t noTCHint
+  where
+  nm = "FORT_reduce_min_" <> toString (intTySyn t)
+  t = typeOf x
+
+select :: Val -> Val -> Val -> M Val
+select x y z = fun t nm $ VTuple pos $ fromList2 [x, y, z]
+  where
+  nm = "FORT_select_" <> toString (intTySyn t)
+  pos = positionOf x
+  t = typeOf y
+
+insertElement :: Val -> Val -> Val -> M Val
+insertElement x y z = fun t nm $ VTuple pos $ fromList2 [x, y, z]
+  where
+  nm = "FORT_insert_element_" <> toString (intTySyn t)
+  pos = positionOf x
+  t = typeOf x
 
 memCall :: Text -> Val -> Val -> Val -> M Val
 memCall n x y z = fun (TyUnit pos) nm $ VTuple pos $ fromList2 [x, y, z]
@@ -348,6 +405,7 @@ intTySyn x = case x of
     U64 -> TyInt pos I64
   TyChar pos -> TyInt pos I8
   TyString pos -> TyPointer pos (TyChar pos)
+  TyVector pos sz t -> TyVector pos sz $ intTySyn t
   _ -> x
 
 negVal :: Val -> M Val
@@ -372,6 +430,7 @@ toString t = case t of
   TyEnum{} -> "i32"
   TyString{} -> "ptr"
   TyBool{} -> "i1"
+  TyVector _ sz a -> "v" <> Text.pack (show $ szVector sz) <> "_" <> toString a
   _ -> unreachable "toString: expected register type" t
 
 exitPrim :: Val -> M Val
@@ -509,6 +568,7 @@ isAllocaTy x = case x of
   TyTuple _ bs -> go $ toList bs
   TyArray _ _ a -> isAllocaTy a
   TyPointer _ a -> isAllocaTy a
+  TyVector _ _ a -> isRegisterTy a
   TyEnum{} -> True
   TyString{} -> True
   TyChar{} -> True
@@ -547,15 +607,40 @@ evalSumAlts c0 m f | isValEnum c0 = do
     (_, dflt) : alts -> switch c0 alts dflt
 evalSumAlts c0 _ _ = unreachable001 "expected enum val" (typeOf c0)
 
+typeofElementTC :: Ty -> Err Ty
+typeofElementTC x = case x of
+  TyType _ t -> typeofElementTC t
+  TyPointer _ t -> ok t
+  TyArray _ _ t -> ok t
+  TyVector _ _ t -> ok t
+  TyString{} -> ok $ TyChar (positionOf x)
+  _ -> throwError "unexpected type to 'typeof-element'"
+  where
+    ok = pure . TyType (positionOf x)
+
 countofTC :: Ty -> Err Ty
 countofTC x = case x of
   TyType _ t -> countofTC t
   TyPointer _ TyArray{} -> ok
   TyArray{} -> ok
+  TyVector{} -> ok
   TyString{} -> ok
   _ -> throwError "unexpected type to 'countof'"
   where
     ok = pure $ TyInt (positionOf x) I32
+
+typeofElement :: Val -> M Val
+typeofElement x = case x of
+  VType _ t -> typeofElementTy t
+  _ -> typeofElementTy $ typeOf x
+
+typeofElementTy :: Ty -> M Val
+typeofElementTy x = case x of
+  TyVector _ _ t -> ok t
+  _ -> error "BAL: typeofElementTy: undefined"
+  where
+    ok = pure . VType pos
+    pos = positionOf x
 
 countof :: Val -> M Val
 countof x = do
@@ -571,6 +656,7 @@ countofType :: Ty -> M Sz
 countofType x = case x of
   TyPointer _ (TyArray _ sz _) -> pure sz
   TyArray _ sz _ -> pure sz
+  TyVector _ _ t -> pure (bitsize x `div` bitsize t)
   _ -> err101 "unexpected type to 'countof'" x noTCHint
 
 load :: Val -> M Val
@@ -593,18 +679,6 @@ load x0 = case x0 of
       _ -> unreachable100 "unexpected value to 'load'" x
       where
       xpos = positionOf x
-
-bitsize :: Ty -> Sz
-bitsize x = case x of
-  TyChar _ -> 8
-  TyFloat _ sz -> szBitsize sz
-  TyInt _ sz -> szBitsize sz
-  TyUInt _ sz -> szBitsize sz
-  TyBool{} -> 1
-  TyPointer _ _ | isRegisterTy x -> bitsizePointer
-  TyString _ -> bitsizePointer
-  TyEnum{} -> 32
-  _ -> unreachable "unexpected type as input to bitsize" x
 
 store :: Val -> Val -> M Val
 store p0 x0 = case p0 of

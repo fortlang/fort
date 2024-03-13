@@ -393,6 +393,7 @@ instance LLVM Ty where
     TyBool{} -> "i1"
     TyUnit{} -> "void"
     TyArray _ sz t -> "[" <+> pretty sz <+> "x" <+> llvm t <+> "]"
+    TyVector _ sz t -> "<" <+> pretty sz <+> "x" <+> llvm t <+> ">"
 
 instance LLVM Val where
   llvm x = case x of

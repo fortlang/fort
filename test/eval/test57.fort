@@ -1,0 +1,46 @@
+qualifier Prelude = "lib/prelude.fort"
+
+main = do
+  p = "Hello simd world!  32 bytes wide"
+
+  haystack = @(cast p `Pointer (Vector 32 Char)`)
+  println haystack
+
+  needle = splat 'o' `Vector 32 Char`
+  println needle
+
+  indices = upto `Vector 32 Char`
+  println indices
+
+  not-found = splat (cast 32 `Char`) `Vector 32 Char`
+  println not-found
+
+  eqs = haystack == needle
+  println eqs
+
+  result = select eqs indices not-found
+  println result
+
+  r = cast (reduce-min result) `Int`
+
+  println r
+
+  println "done"
+
+insert-element = curry3 Prim.insert-element
+typeof-element = Prim.typeof-element
+select = curry3 Prim.select
+reduce-min = Prim.reduce-min
+
+splat = \x t -> do
+  v0 = load (alloca t)
+  loop (0, v0) $ \(i, v) -> if
+    i < countof t -> Continue (i + 1, insert-element v i x)
+    otherwise -> Done v
+
+upto = \t -> do
+  v0 = load (alloca t)
+  loop (0, v0) $ \(i, v) -> if
+    i < countof t -> Continue (i + 1, insert-element v i $ cast i $ typeof-element v0)
+    otherwise -> Done v
+

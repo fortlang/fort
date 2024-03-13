@@ -99,6 +99,7 @@ data Ty
   | TyUInt Position Type.SzUInt
   | TyBool Position
   | TyArray Position Sz Ty
+  | TyVector Position Type.SzVector Ty
   deriving (Show, Data)
 
 instance Eq Ty where
@@ -114,6 +115,7 @@ instance Eq Ty where
     (TyUInt _ a, TyUInt _ b) -> a == b
     (TyBool _, TyBool _) -> True
     (TyArray _ a b, TyArray _ c d) -> a == c && b == d
+    (TyVector _ a b, TyVector _ c d) -> a == c && b == d
     _ -> False
 
 instance Positioned Ty where
@@ -129,6 +131,7 @@ instance Positioned Ty where
     TyUInt pos _ -> pos
     TyBool pos -> pos
     TyArray pos _ _ -> pos
+    TyVector pos _ _ -> pos
 
 bitsize :: Ty -> Sz
 bitsize x = case x of
@@ -295,6 +298,7 @@ fromTy :: Type.Ty -> Ty
 fromTy x = case x of
   Type.TyOpaque pos _ -> TyOpaque pos
   Type.TyArray pos sz t -> TyArray pos sz $ fromTy t
+  Type.TyVector pos sz t -> TyVector pos sz $ fromTy t
   Type.TyPointer pos ty -> TyPointer pos (fromTy ty)
   Type.TyEnum pos _ -> TyEnum pos
   Type.TyString pos -> TyString pos
@@ -372,6 +376,7 @@ instance Pretty Ty where
     TyUnit _ -> "()"
     TyPointer _ t -> "Pointer" <+> f t
     TyArray _ sz t -> "Array" <+> pretty sz <+> f t
+    TyVector _ sz t -> "Vector" <+> pretty sz <+> f t
     TyEnum _ -> "Enum"
     TyString _ -> "String"
     TyChar _ -> "C8"
@@ -382,6 +387,7 @@ instance Pretty Ty where
     where
       f ty = case ty of
         TyArray{} -> parens (pretty ty)
+        TyVector{} -> parens (pretty ty)
         TyPointer{} -> parens (pretty ty)
         TyChar{} -> parens (pretty ty)
         TyFloat{} -> parens (pretty ty)
@@ -396,5 +402,5 @@ instance Pretty Val where
     Scalar _ a -> pretty a
 
 instance Pretty Register where
-  pretty x = pretty (registerId x)
+  pretty x = "%" <> pretty (registerId x)
 

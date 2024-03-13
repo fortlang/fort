@@ -284,6 +284,7 @@ transType x = case x of
   Fort.Abs.TUInt _ -> failure x
   Fort.Abs.TUnit _ -> failure x
   Fort.Abs.TVar _ lident -> failure x
+  Fort.Abs.TVector _ -> failure x
 
 transUIdent :: Show a => Fort.Abs.UIdent' a -> Result
 transUIdent x = case x of

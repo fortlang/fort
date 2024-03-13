@@ -248,6 +248,7 @@ data Type' a
     | TUInt a
     | TUnit a
     | TVar a (LIdent' a)
+    | TVector a
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
 type UIdent = UIdent' BNFC'Position
@@ -531,6 +532,7 @@ instance HasPosition Type where
     TUInt p -> p
     TUnit p -> p
     TVar p _ -> p
+    TVector p -> p
 
 instance HasPosition UIdent where
   hasPosition = \case

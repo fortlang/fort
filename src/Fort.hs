@@ -174,10 +174,10 @@ buildFn :: [String] -> (FilePath, BuildType) -> IO ()
 buildFn bldAppend (fn, bt) = case bt of
   Exe -> do
     putStrLn $ exeFn fn ++ ": (exe)"
-    doCallCommand "clang" $ ["-O3", "-flto", "-o", exeFn fn, llvmFn fn] ++ bldAppend
+    doCallCommand "clang" $ ["-O3", "-mavx2", "-flto", "-o", exeFn fn, llvmFn fn] ++ bldAppend
   Obj -> do
     putStrLn $ llvmFn fn ++ ": (obj)"
-    doCallCommand "clang" ["-O3", "-c", "-o", objFn fn, llvmFn fn]
+    doCallCommand "clang" ["-O3", "-mavx2", "-c", "-o", objFn fn, llvmFn fn]
   NoCode -> do
     putStrLn $ fn ++ ": (no code)"
     putStrLn "no .exe/.o (no main or exported functions found)"

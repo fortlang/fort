@@ -103,6 +103,7 @@ Type nonterminal
   TUnit ::= "()"
   TPointer ::= "Pointer"
   TArray ::= "Array"
+  TVector ::= "Vector"
   TOpaque ::= "Opaque" AString
   ;; String used by the type checker
   TString ::= "String"

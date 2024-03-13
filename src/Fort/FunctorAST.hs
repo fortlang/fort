@@ -634,6 +634,7 @@ data Type a
     | TUInt a
     | TUnit a
     | TArray a
+    | TVector a
     | TBool a
     | TChar a
     | TFloat a
@@ -649,6 +650,7 @@ toType x = case x of
   Abs.TFun a b c -> TFun a <$> toType b <*> toType c
   Abs.TApp a b c -> TApp a <$> toType b <*> toType c
   Abs.TArray a -> pure $ TArray a
+  Abs.TVector a -> pure $ TVector a
   Abs.TBool a -> pure $ TBool a
   Abs.TChar a -> pure $ TChar a
   Abs.TFloat a -> pure $ TFloat a
@@ -688,6 +690,7 @@ instance Pretty (Type a) where
     TUnit _ -> "()"
     TPointer _ -> "Pointer"
     TArray _ -> "Array"
+    TVector _ -> "Vector"
     TOpaque _ a -> "Opaque" <+> pretty a
     TString _ -> "String"
     TUInt _ -> "U"
@@ -741,6 +744,7 @@ instance Positioned (Type Position) where
     TVar pos _ -> pos
 
     TArray pos -> pos
+    TVector pos -> pos
     TBool pos -> pos
     TChar pos -> pos
     TFloat pos -> pos

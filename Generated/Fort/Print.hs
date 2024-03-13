@@ -474,6 +474,7 @@ instance Print (Fort.Abs.Type' a) where
     Fort.Abs.TUInt _ -> prPrec i 3 (concatD [doc (showString "U")])
     Fort.Abs.TUnit _ -> prPrec i 3 (concatD [doc (showString "()")])
     Fort.Abs.TVar _ lident -> prPrec i 3 (concatD [prt 0 lident])
+    Fort.Abs.TVector _ -> prPrec i 3 (concatD [doc (showString "Vector")])
 
 instance Print (Fort.Abs.UIdent' a) where
   prt i = \case

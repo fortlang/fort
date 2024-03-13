@@ -88,9 +88,19 @@ __attribute__((always_inline)) void FORT_print_I64(int64_t x)
   printf("%" PRId64 "", x);
 }
 
-void FORT_print_U64(uint64_t x)
+__attribute__((always_inline)) void FORT_print_U64(uint64_t x)
 {
   printf("%" PRIu64 "", x);
+}
+__attribute__((always_inline)) void FORT_print_Vector32C8(v32i8 x)
+{
+  char* p = (char*)&x;
+    printf("<");
+    for(int i = 0; i < 32; i++)
+    {
+        printf("%d,", p[i]);
+    }
+    printf(">");
 }
 
 // double clock_gettime_monotonic()

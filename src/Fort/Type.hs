@@ -37,6 +37,8 @@ data Ty
   | XTyUInt Position
   | XTyPointer Position
   | XTyArray Position
+  | XTyVector Position
+  | XXTyVector Position Integer
   | XXTyArray Position (NonEmpty Integer)
   | XTySizes Position (NonEmpty Integer)
   | XTyPrimCall Position Text
@@ -48,6 +50,7 @@ data Ty
   | TySum Position (Map UIdent (Maybe Ty))
   | TyTuple Position (NonEmpty2 Ty)
   | TyArray Position Sz Ty
+  | TyVector Position SzVector Ty
   | TyUnit Position
 
   | TyType Position Ty
@@ -70,6 +73,18 @@ class Bitsize a where
 data SzFloat = F32 | F64 deriving (Show, Eq, Data)
 data SzInt = I8 | I16 | I32 | I64 deriving (Show, Eq, Data)
 data SzUInt = U8 | U16 | U32 | U64 deriving (Show, Eq, Data)
+data SzVector = V2 | V4 | V8 | V16 | V32 deriving (Show, Eq, Data)
+
+szVector :: SzVector -> Sz
+szVector x = case x of
+    V2 -> 2
+    V4 -> 4
+    V8 -> 8
+    V16 -> 16
+    V32 -> 32
+
+instance Pretty SzVector where
+  pretty = pretty . szVector
 
 instance Bitsize SzFloat where
   szBitsize x = case x of
@@ -107,6 +122,7 @@ instance Eq Ty where
         bs = Map.elems $ Map.intersectionWith (==) m n
     (TyTuple _ bs, TyTuple _ cs) -> length2 bs == length2 cs && and (uncurry (==) <$> zip (toList bs) (toList cs))
     (TyArray _ sza a, TyArray _ szb b) -> sza == szb && a == b
+    (TyVector _ sza a, TyVector _ szb b) -> sza == szb && a == b
     (TyNone _ , TyNone _) -> True
     (TyFun _ a b, TyFun _ c d) -> a == c && b == d
     (TyUnit _, TyUnit _) -> True
@@ -135,6 +151,8 @@ instance Positioned Ty where
     XTyPointer pos -> pos
     XTyArray pos -> pos
     XXTyArray pos _ -> pos
+    XTyVector pos -> pos
+    XXTyVector pos _ -> pos
     XTySizes pos _ -> pos
     XTyPrimCall pos _ -> pos
     TyNone pos -> pos
@@ -143,6 +161,7 @@ instance Positioned Ty where
     TySum pos _ -> pos
     TyTuple pos _ -> pos
     TyArray pos _ _ -> pos
+    TyVector pos _ _ -> pos
     TyUnit pos -> pos
     TyType pos _ -> pos
     TyOpaque pos _ -> pos
@@ -160,7 +179,6 @@ instance Pretty Ty where
     XTyTailRecDecls{} -> "<tytailrecdecls>"
     XTyUnknown _ fn i -> "<tyunknown =" <+> pretty fn <+> pretty i <> ">"
     TyFun _ a b -> pretty a <+> "->" <+> f b
-    TyArray _ sz t -> "Array" <+> pretty sz <+> f t
 
     XTyTLam{} -> "<tylam>"
     XTyLam{} -> "<lam>"
@@ -172,12 +190,16 @@ instance Pretty Ty where
     XTyPointer{} -> "<typointer>"
     XTyArray{} -> "<tyarray>"
     XXTyArray{} -> "<tyarray sizes>"
+    XXTyVector{} -> "<tyvector size>"
+    XTyVector{} -> "<tyvector>"
     XTySizes{} -> "<tysizes>"
 
-    -- these should remain
     TyNone{} -> "TyNone"
     TyType _ t -> "<Type = " <> pretty t <> ">"
     TyOpaque _ n -> "<Opaque" <+> pretty n <> ">"
+
+    TyArray _ sz t -> "Array" <+> pretty sz <+> f t
+    TyVector _ sz t -> "Vector" <+> pretty sz <+> pretty t
 
     TyRecord _ m -> "Record" <+> pretty m
     TySum _ m -> "Sum" <+> pretty m
@@ -199,6 +221,7 @@ instance Pretty Ty where
         TySum{} -> parens (pretty ty)
         TyRecord{} -> parens (pretty ty)
         TyArray{} -> parens (pretty ty)
+        TyVector{} -> parens (pretty ty)
         TyPointer{} -> parens (pretty ty)
         TyChar{} -> parens (pretty ty)
         TyFloat{} -> parens (pretty ty)
@@ -239,6 +262,7 @@ evalType_ t = evalType mempty t >>= go
       TySum pos m -> TySum pos <$> mapM (mapM go) m
       TyTuple pos ts -> TyTuple pos <$> mapM go ts
       TyArray pos sz a -> TyArray pos sz <$> go a
+      TyVector pos sz a -> TyVector pos sz <$> go a
       TyPointer pos a -> TyPointer pos <$> go a
       TyUnit{} -> pure ty
       TyOpaque{} -> pure ty
@@ -298,10 +322,24 @@ evalType env x = case x of
         _ -> err101 "unsupported UInt size" b sz
       (XXTyArray pos szs, _) -> pure $ foldr (TyArray pos) tb szs
       (XTyArray pos, XTySizes _ szs) -> pure $ XXTyArray pos szs
+      (XTyVector pos , XTySizes _ (sz :| [])) -> pure $ XXTyVector pos sz
+      (XXTyVector pos sz, _) -> if
+        | n == 128 || n == 256 -> case sz of
+            2 -> pure $ TyVector pos V2 tb
+            4 -> pure $ TyVector pos V4 tb
+            8 -> pure $ TyVector pos V8 tb
+            16 -> pure $ TyVector pos V16 tb
+            32 -> pure $ TyVector pos V32 tb
+            _ -> vecErr
+        | otherwise -> vecErr
+          where
+            vecErr = err111 "expected vector size to be 128 or 256" a b sz
+            n = sz * bitsize tb
       _ -> err101 "unexpected type in type application" a ta
 
   TPointer pos -> pure $ XTyPointer pos
   TArray pos -> pure $ XTyArray pos
+  TVector pos -> pure $ XTyVector pos
 
   TFun pos a b -> TyFun pos <$> evalType env a <*> evalType env b
   TParens _ t -> evalType env t
@@ -320,6 +358,19 @@ evalType env x = case x of
   
   TSize pos a -> pure $ XTySizes pos $ NE.singleton a
   TSizes pos bs -> XTySizes pos . concatNE <$> mapM (evalSize env) bs
+
+bitsize :: Ty -> Sz
+bitsize x = case x of
+  TyChar _ -> 8
+  TyFloat _ sz -> szBitsize sz
+  TyInt _ sz -> szBitsize sz
+  TyUInt _ sz -> szBitsize sz
+  TyBool{} -> 1
+  TyPointer _ _ | isRegisterTy x -> bitsizePointer
+  TyString _ -> bitsizePointer
+  TyEnum{} -> 32
+  TyVector _ sz t -> szVector sz * bitsize t
+  _ -> unreachable "unexpected type as input to bitsize" x
 
 fromNEList :: Ord k => NonEmpty (k, a) -> Map k a
 fromNEList = Map.fromList . toList
@@ -348,6 +399,7 @@ isRegisterTy x = case x of
   TyInt{} -> True
   TyUInt{} -> True
   TyBool{} -> True
+  TyVector{} -> True
   _ -> False
   where
     go a = case a of
