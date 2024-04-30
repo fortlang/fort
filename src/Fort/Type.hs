@@ -29,9 +29,8 @@ data Ty
   -- these should be eliminated during evalType
   = XTyTLam Position TyEnv LIdent Type
   | XTyLam Position TyEnv Binding Exp
-  | XTyTailRecDecls Position TyEnv (NonEmpty TailRecDecl) LIdent
-  | XTyUnknown Position LIdent Int
   | XTyChar Position
+  | XTyLoop Position
   | XTyFloat Position
   | XTyInt Position
   | XTyUInt Position
@@ -42,9 +41,9 @@ data Ty
   | XXTyArray Position (NonEmpty Integer)
   | XTySizes Position (NonEmpty Integer)
   | XTyPrimCall Position Text
+  | XTyErr Position
 
   -- these should remain
-  | TyNone Position -- the type of 'undef' and looping tailrec calls
   | TyFun Position Ty Ty
   | TyRecord Position (Map LIdent Ty)
   | TySum Position (Map UIdent (Maybe Ty))
@@ -116,14 +115,15 @@ instance Pretty SzUInt where
 
 instance Eq Ty where
   x == y = case (x, y) of
-    (TySum _ m, TySum _ n) -> and $ Map.elems $ Map.intersectionWith (==) m n
+    (TySum _ m, TySum _ n) -> isEqualByKeys m n && and bs
+      where
+        bs = Map.elems $ Map.intersectionWith (==) m n
     (TyRecord _ m, TyRecord _ n) -> isEqualByKeys m n && and bs
       where
         bs = Map.elems $ Map.intersectionWith (==) m n
     (TyTuple _ bs, TyTuple _ cs) -> length2 bs == length2 cs && and (uncurry (==) <$> zip (toList bs) (toList cs))
     (TyArray _ sza a, TyArray _ szb b) -> sza == szb && a == b
     (TyVector _ sza a, TyVector _ szb b) -> sza == szb && a == b
-    (TyNone _ , TyNone _) -> True
     (TyFun _ a b, TyFun _ c d) -> a == c && b == d
     (TyUnit _, TyUnit _) -> True
     (TyType _ a, TyType _ b) -> a == b
@@ -140,10 +140,10 @@ instance Eq Ty where
 
 instance Positioned Ty where
   positionOf x = case x of
+    XTyErr pos -> pos
     XTyTLam pos _ _ _ -> pos
     XTyLam pos _ _ _ -> pos
-    XTyTailRecDecls pos _ _ _ -> pos
-    XTyUnknown pos _ _ -> pos
+    XTyLoop pos -> pos
     XTyChar pos -> pos
     XTyFloat pos -> pos
     XTyInt pos -> pos
@@ -155,7 +155,6 @@ instance Positioned Ty where
     XXTyVector pos _ -> pos
     XTySizes pos _ -> pos
     XTyPrimCall pos _ -> pos
-    TyNone pos -> pos
     TyFun pos _ _ -> pos
     TyRecord pos _ -> pos
     TySum pos _ -> pos
@@ -176,11 +175,11 @@ instance Positioned Ty where
 
 instance Pretty Ty where
   pretty x = case x of
-    XTyTailRecDecls{} -> "<tytailrecdecls>"
-    XTyUnknown _ fn i -> "<tyunknown =" <+> pretty fn <+> pretty i <> ">"
     TyFun _ a b -> pretty a <+> "->" <+> f b
 
+    XTyErr{} -> "<tyerr>"
     XTyTLam{} -> "<tylam>"
+    XTyLoop{} -> "<loop>"
     XTyLam{} -> "<lam>"
     XTyPrimCall _ nm -> "<primcall = " <> pretty nm <> ">"
     XTyChar{} -> "<tychar>"
@@ -194,7 +193,6 @@ instance Pretty Ty where
     XTyVector{} -> "<tyvector>"
     XTySizes{} -> "<tysizes>"
 
-    TyNone{} -> "TyNone"
     TyType _ t -> "<Type = " <> pretty t <> ">"
     TyOpaque _ n -> "<Opaque" <+> pretty n <> ">"
 

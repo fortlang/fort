@@ -1,17 +1,24 @@
 main = do
   println ((1, 1.2) == (1, 1.2))
-  println ({x = 42} == {x = 42})
-
   println ((1, 1.2) != (1, 1.2))
+
+  println ({x = 42} == {x = 42})
   println ({x = 42} != {x = 42})
 
-  println (Nothing == Nothing)
   println (Just 42 == Just 42)
-  println (Just 42 != Nothing)
-  println (Nothing != Red)
-  println (Nothing != Nothing)
   println (Just 42 != Just 42)
+
+  println (Just 42 != Just 1)
+  println (Just 42 == Just 1)
+
+  println (Just 42 != Nothing)
   println (Just 42 == Nothing)
+
+  println (Nothing != Red)
+  println (Nothing == Red)
+
+  println (Nothing == Nothing)
+  println (Nothing != Nothing)
 
 qualifier Prelude = "lib/prelude.fort"
 

@@ -1,26 +1,34 @@
 qualifier Prelude = "lib/prelude.fort"
 
 main = do
-  tailrec
-    even = \i -> if
-      i == 0 -> Even
-      True -> odd (i - 1)
+  even = \i -> if
+    i == 0 -> Done Even
+    True -> Continue (Odd, i - 1)
 
-    odd = \i -> if
-      i == 0 -> Odd
-      True -> even (i - 1)
+  odd = \i -> if
+    i == 0 -> Done Odd
+    True -> Continue (Even, i - 1)
+
+  foo = \(x, i) -> case x of
+    Even -> even i
+    Odd -> odd i
+
+  mkEO = \x -> cast x `Sum{ Even; Odd }`
+
+  goEven = \i -> loop (mkEO Even, i) foo
+  goOdd = \i -> loop (mkEO Odd, i) foo
 
   print "5 is "
-  println (even 5)
+  println (goEven 5)
   print "4 is "
-  println (even 4)
+  println (goEven 4)
   print "5 is not "
-  println (odd 5)
+  println (goOdd 5)
   print "4 is not "
-  println (odd 4)
+  println (goOdd 4)
   print "0 is not "
   a = case 0 of
-    0 -> even 3
+    0 -> goEven 3
     _ -> Even
   println a
 

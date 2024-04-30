@@ -16,16 +16,16 @@ module Fort.Prims
 where
 
 import Control.Monad.Except
+import Foreign.C
+import Foreign.LibFFI
 import Fort.Type hiding (M)
 import Fort.Utils
 import Fort.Val
-import qualified Data.Map as Map
-import qualified Data.Text as Text
-import qualified Data.List as List
-import qualified Data.Set as Set
-import Foreign.C
-import Foreign.LibFFI
 import System.Posix.DynamicLinker
+import qualified Data.List as List
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import qualified Data.Text as Text
 
 type Err a = Either (Doc ()) a
 
@@ -137,21 +137,33 @@ indexTC a ix = case a of
   TyPointer pos (TyArray _ _ t) | isAllocaTy t -> pure $ TyPointer pos t
   _ -> throwError "unexpected input type to 'index'"
 
-sumTyIsSmallerOrEq :: Maybe Ty -> Maybe Ty -> Bool
-sumTyIsSmallerOrEq x y = case (x, y) of
-  (Just a, Just b) -> a `isSmallerOrEq` b
-  (Nothing, Nothing) -> True
-  _ -> False
-
 storeScalarVal :: Val -> Val -> M Val
 storeScalarVal p x = case typeOf p of
-  TyPointer _ ta | isRegisterTy ta && typeOf x `isSmallerOrEq` ta ->
+  TyPointer _ ta | isRegisterTy ta && typeOf x `isSmallerOrEq` ta -> do
+    s <- toString (intTySyn $ typeOf x)
+    let nm = "FORT_" <> "store" <> "_" <> s
     fun (TyUnit pos) nm $ VTuple pos $ fromList2 [ x, p ]
-    where
-    nm = "FORT_" <> "store" <> "_" <> toString (intTySyn $ typeOf x)
   t -> err111 "unexpected type to 'store'" t p noTCHint
   where
   pos = positionOf p
+
+isEqTC :: Ty -> Ty -> Bool
+isEqTC x y = case (x, y) of
+  (TyEnum{}, TyEnum{}) -> True
+  _ | isRegisterTy x -> x == y
+  (TyArray _ sza a, TyArray _ szb b) -> sza == szb && isEqTC a b
+  (TyTuple _ bs, TyTuple _ cs) -> length2 bs == length2 cs &&
+    and (zipWith isEqTC (toList bs) (toList cs))
+  (TyRecord _ m, TyRecord _ n) | n `isEqualByKeys` m ->
+    Map.isSubmapOfBy isEqTC m n
+  (TySum _ m, TySum _ n) -> and $ Map.elems $ Map.intersectionWith sumTyIsEqTC m n
+  _ -> False
+
+sumTyIsEqTC :: Maybe Ty -> Maybe Ty -> Bool
+sumTyIsEqTC x y = case (x, y) of
+  (Just a, Just b) -> a `isEqTC` b
+  (Nothing, Nothing) -> True
+  _ -> False
 
 isSmallerOrEq :: Ty -> Ty -> Bool
 isSmallerOrEq x y = case (x, y) of
@@ -163,6 +175,12 @@ isSmallerOrEq x y = case (x, y) of
   (TyRecord _ m, TyRecord _ n) | n `isEqualByKeys` m ->
     Map.isSubmapOfBy isSmallerOrEq m n
   (TySum _ m, TySum _ n) -> Map.isSubmapOfBy sumTyIsSmallerOrEq m n
+  _ -> False
+
+sumTyIsSmallerOrEq :: Maybe Ty -> Maybe Ty -> Bool
+sumTyIsSmallerOrEq x y = case (x, y) of
+  (Just a, Just b) -> a `isSmallerOrEq` b
+  (Nothing, Nothing) -> True
   _ -> False
 
 storeTC :: Ty -> Ty -> Err Ty
@@ -189,7 +207,7 @@ loadTC x0 = case x0 of
 
 eqTC :: Ty -> Ty -> Err Ty
 eqTC a b = if
-  | a == b -> case a of
+  | a `isEqTC` b -> case a of
       TyVector{} -> pure a
       _ -> pure $ TyBool $ positionOf a
   | otherwise -> throwError "expected the input values to have the same type"
@@ -330,9 +348,11 @@ sub :: Val -> Val -> M Val
 sub = idCall2Syn "sub"
 
 idCall2Syn :: Text -> Val -> Val -> M Val
-idCall2Syn n x y = fun t nm $ VTuple pos $ fromList2 [x, y]
+idCall2Syn n x y = do
+  s <- toString (intTySyn t)
+  let nm = "FORT_" <> n <> "_" <> s
+  fun t nm $ VTuple pos $ fromList2 [x, y]
   where
-  nm = "FORT_" <> n <> "_" <> toString (intTySyn t)
   t = typeOf x
   pos = positionOf x
 
@@ -345,9 +365,11 @@ pureF m = do
   pure a
 
 boolCall2SynPure :: Text -> Val -> Val -> M Val
-boolCall2SynPure n x y = pureF $ fun rt nm $ VTuple pos $ fromList2 [x, y]
+boolCall2SynPure n x y = do
+  s <- toString (intTySyn t)
+  let nm = "FORT_" <> n <> "_" <> s
+  pureF $ fun rt nm $ VTuple pos $ fromList2 [x, y]
   where
-  nm = "FORT_" <> n <> "_" <> toString (intTySyn t)
   t = typeOf x
   pos = positionOf x
   rt = case t of
@@ -362,37 +384,46 @@ lt = boolCall2SynPure "lt"
 
 loadScalarVal :: Val -> M Val
 loadScalarVal x = case typeOf x of
-  TyPointer _ t | isRegisterTy t -> fun t nm x
-    where
-    nm = "FORT_" <> "load" <> "_" <> toString (intTySyn t)
+  TyPointer _ t | isRegisterTy t -> do
+    s <- toString (intTySyn t)
+    let nm = "FORT_" <> "load" <> "_" <> s
+    fun t nm x
   t -> err111 "unexpected type to 'load'" x t noTCHint
 
 reduceMin :: Val -> M Val
 reduceMin x = case t of
-  TyVector _ _ a -> fun a nm x
+  TyVector _ _ a -> do
+    s <- toString (intTySyn t)
+    let nm = "FORT_reduce_min_" <> s
+    fun a nm x
   _ -> err111 "unexpected type to 'reduce-min'" x t noTCHint
   where
-  nm = "FORT_reduce_min_" <> toString (intTySyn t)
   t = typeOf x
 
 select :: Val -> Val -> Val -> M Val
-select x y z = fun t nm $ VTuple pos $ fromList2 [x, y, z]
+select x y z = do
+  s <- toString (intTySyn t)
+  let nm = "FORT_select_" <> s
+  fun t nm $ VTuple pos $ fromList2 [x, y, z]
   where
-  nm = "FORT_select_" <> toString (intTySyn t)
   pos = positionOf x
   t = typeOf y
 
 insertElement :: Val -> Val -> Val -> M Val
-insertElement x y z = fun t nm $ VTuple pos $ fromList2 [x, y, z]
+insertElement x y z = do
+  s <- toString (intTySyn t)
+  let nm = "FORT_insert_element_" <> s
+  fun t nm $ VTuple pos $ fromList2 [x, y, z]
   where
-  nm = "FORT_insert_element_" <> toString (intTySyn t)
   pos = positionOf x
   t = typeOf x
 
 memCall :: Text -> Val -> Val -> Val -> M Val
-memCall n x y z = fun (TyUnit pos) nm $ VTuple pos $ fromList2 [x, y, z]
+memCall n x y z = do
+  s <- toString (intTySyn t)
+  let nm = "FORT_" <> n <> "_" <> s
+  fun (TyUnit pos) nm $ VTuple pos $ fromList2 [x, y, z]
   where
-  nm = "FORT_" <> n <> "_" <> toString (intTySyn t)
   t = typeOf z
   pos = positionOf x
 
@@ -411,47 +442,54 @@ intTySyn x = case x of
 negVal :: Val -> M Val
 negVal x = case typeOf x of
   TyFloat{} -> idCall "neg" x
-  _ -> sub (iconst 0 $ typeOf x) x
+  _ -> do
+    i <- iconst 0 $ typeOf x
+    sub i x
 
 idCall :: Text -> Val -> M Val
-idCall n x = fun t nm x
+idCall n x = do
+  s <- toString t
+  let nm = "FORT_" <> n <> "_" <> s
+  fun t nm x
   where
-  nm = "FORT_" <> n <> "_" <> toString t
   t = typeOf x
 
-toString :: Ty -> Text
+toString :: Ty -> M Text
 toString t = case t of
-  TyFloat _ F32 -> "float"
-  TyFloat _ F64 -> "double"
-  TyInt _ sz -> "i" <> Text.pack (show $ szBitsize sz)
-  TyUInt _ sz -> "u" <> Text.pack (show $ szBitsize sz)
-  TyChar _ -> "c8"
-  TyPointer{} -> "ptr"
-  TyEnum{} -> "i32"
-  TyString{} -> "ptr"
-  TyBool{} -> "i1"
-  TyVector _ sz a -> "v" <> Text.pack (show $ szVector sz) <> "_" <> toString a
-  _ -> unreachable "toString: expected register type" t
+  TyFloat _ F32 -> pure "float"
+  TyFloat _ F64 -> pure "double"
+  TyInt _ sz -> pure ("i" <> Text.pack (show $ szBitsize sz))
+  TyUInt _ sz -> pure ("u" <> Text.pack (show $ szBitsize sz))
+  TyChar _ -> pure "c8"
+  TyPointer{} -> pure "ptr"
+  TyEnum{} -> pure "i32"
+  TyString{} -> pure "ptr"
+  TyBool{} -> pure "i1"
+  TyVector _ sz a -> do
+    s <- toString a
+    pure ("v" <> Text.pack (show $ szVector sz) <> "_" <> s)
+  _ -> err101 "unexpected type" t noTCHint
 
 exitPrim :: Val -> M Val
 exitPrim v = fun1 (const $ TyUnit pos) "Prim.exit" v
   where
   pos = positionOf v
 
-iconst :: Integer -> Ty -> Val
-iconst i x = VScalar pos $ case x of
-  TyInt _ sz -> VInt pos $ case sz of
+iconst :: Integer -> Ty -> M Val
+iconst i x = case x of
+  TyInt _ sz -> ok $ VInt pos $ case sz of
     I8 -> VInt8 $ fromInteger i
     I16 -> VInt16 $ fromInteger i
     I32 -> VInt32 $ fromInteger i
     I64 -> VInt64 $ fromInteger i
-  TyUInt _ sz -> VUInt pos $ case sz of
+  TyUInt _ sz -> ok $ VUInt pos $ case sz of
     U8 -> VUInt8 $ fromInteger i
     U16 -> VUInt16 $ fromInteger i
     U32 -> VUInt32 $ fromInteger i
     U64 -> VUInt64 $ fromInteger i
-  _ -> unreachable "Prims.iconst" x
+  _ -> err101 "expected signed or unsigned integer type" x noTCHint
   where
+    ok = pure . VScalar pos
     pos = positionOf x
 
 appendBuildTC :: Ty -> Err Ty
@@ -472,8 +510,16 @@ signedIntOrFloat a = if
 neSumDataVals :: Map UIdent (Maybe Val) -> (UIdent, Maybe Val) -> M Val
 neSumDataVals m (c, mv) = case (mv, Map.lookup c m) of
   (Just v, Just (Just v')) -> neVal v v'
-  (Nothing, Nothing) -> pure $ VScalar pos $ VBool pos False
+  (Nothing, Just Nothing) -> pure $ VScalar pos $ VBool pos False
   _ -> pure $ VScalar pos $ VBool pos True
+  where
+  pos = positionOf c
+
+eqSumDataVals :: Map UIdent (Maybe Val) -> (UIdent, Maybe Val) -> M Val
+eqSumDataVals m (c, mv) = case (mv, Map.lookup c m) of
+  (Just v, Just (Just v')) -> eqVal v v'
+  (Nothing, Just Nothing) -> pure $ VScalar pos $ VBool pos True
+  _ -> pure $ VScalar pos $ VBool pos False
   where
   pos = positionOf c
 
@@ -490,14 +536,6 @@ neVal x y = case (x, y) of
       evalIf eqv (evalSumAlts b m $ neSumDataVals n) (pure $ VScalar pos $ VBool pos True)
   _ | isRegisterVal x && isRegisterVal y -> boolCall2SynPure "neq" x y
   _ -> err111 "unexpected values to Prim.ne" x y noTCHint
-
-eqSumDataVals :: Map UIdent (Maybe Val) -> (UIdent, Maybe Val) -> M Val
-eqSumDataVals m (c, mv) = case (mv, Map.lookup c m) of
-  (Just v, Just (Just v')) -> eqVal v v'
-  (Nothing, Just Nothing) -> pure $ VScalar pos $ VBool pos True
-  _ -> pure $ VScalar pos $ VBool pos False
-  where
-  pos = positionOf c
 
 eqVal :: Val -> Val -> M Val
 eqVal x y = case (x, y) of
@@ -637,7 +675,7 @@ typeofElement x = case x of
 typeofElementTy :: Ty -> M Val
 typeofElementTy x = case x of
   TyVector _ _ t -> ok t
-  _ -> error "BAL: typeofElementTy: undefined"
+  _ -> err101 "expected vector type" x noTCHint
   where
     ok = pure . VType pos
     pos = positionOf x
@@ -751,10 +789,11 @@ indexScalarVal x i = case typeOf x of
   TyPointer _ (TyArray _ sz t) -> do
     indexAsserts i sz
     let offset = muldims (dimensions t)
-    j <- mul i $ iconst offset (typeOf i)
+    j <- iconst offset (typeOf i) >>= mul i
+    s1 <- toString (intTySyn $ baseTy t)
+    s2 <- toString (intTySyn $ typeOf i)
+    let nm = "FORT_" <> "index" <> "_" <> s1 <> "_" <> s2
     fun (TyPointer pos t) nm $ VTuple pos $ fromList2 [x, j]
-      where
-      nm = "FORT_" <> "index" <> "_" <> toString (intTySyn $ baseTy t) <> "_" <> toString (intTySyn $ typeOf i)
 
   t -> err111 "unexpected type of value to 'index'" t x noTCHint
   where
@@ -763,8 +802,8 @@ indexScalarVal x i = case typeOf x of
 indexAsserts :: Val -> Sz -> M ()
 indexAsserts v sz = if
   | isIntTy t -> do
-    void $ gte v (iconst 0 t) >>= assertWithMessage "index underflow"
-    void $ lt v (iconst sz t) >>= assertWithMessage "index overflow"
+    void $ iconst 0 t >>= gte v >>= assertWithMessage "index underflow"
+    void $ iconst sz t >>= lt v >>= assertWithMessage "index overflow"
   | otherwise -> err111 "unexpected type for 'index' input value" t v noTCHint
   where
   t = typeOf v
@@ -826,7 +865,7 @@ printVal x = case x of
     printStrLit "; "
     printChLit '}'
 
-  _-> unreachable001 "unable to 'print' internal value" x
+  _-> err100 "unable to 'print' internal value" x
 
 printChLit :: Char -> M ()
 printChLit = printPrim . VScalar noPosition . VChar noPosition
@@ -847,16 +886,21 @@ castTC a b = if
   | otherwise -> throwError "unexpected cast types"
 
 idCall2 :: Text -> Val -> Val -> M Val
-idCall2 n x y = fun t nm $ VTuple pos $ fromList2 [x, y]
+idCall2 n x y = do
+  s <- toString t
+  let nm = "FORT_" <> n <> "_" <> s
+  fun t nm $ VTuple pos $ fromList2 [x, y]
   where
-  nm = "FORT_" <> n <> "_" <> toString t
   t = typeOf x
   pos = positionOf x
 
 casttoCall :: Text -> Val -> Ty -> M Val
-casttoCall n x ty = fun ty nm x
+casttoCall n x ty = do
+  s1 <- toString (charTySyn t)
+  s2 <- toString (charTySyn ty)
+  let nm = "FORT_" <> n <> "_" <> s1 <> "_" <> s2
+  fun ty nm x
   where
-  nm = "FORT_" <> n <> "_" <> toString (charTySyn t) <> "_" <> toString (charTySyn ty)
   t = typeOf x
 
 charTySyn :: Ty -> Ty
@@ -865,9 +909,12 @@ charTySyn x = case x of
   _ -> x
 
 casttoCallSyn :: Text -> Val -> Ty -> M Val
-casttoCallSyn n x ty = fun ty nm x
+casttoCallSyn n x ty = do
+  s1 <- toString (intTySyn t)
+  s2 <- toString (intTySyn ty)
+  let nm = "FORT_" <> n <> "_" <> s1 <> "_" <> s2
+  fun ty nm x
   where
-  nm = "FORT_" <> n <> "_" <> toString (intTySyn t) <> "_" <> toString (intTySyn ty)
   t = typeOf x
 
 isPointerTy :: Ty -> Bool
@@ -886,7 +933,7 @@ castCall x ty = if
   | bitsize tx > bitsize ty -> casttoCallSyn "truncto" x ty
   | bitsize tx < bitsize ty -> casttoCall "extto" x ty
   | bitsize tx == bitsize ty -> casttoCallSyn "bitcast" x ty
-  | otherwise -> error $ show $ pretty (tx, ty)
+  | otherwise -> unreachable110 "incompatible cast value/type" x ty
   where
     tx = typeOf x
 

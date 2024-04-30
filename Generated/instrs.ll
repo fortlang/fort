@@ -2,7 +2,6 @@ declare i8 @llvm.abs.i8 ( i8 , i1 )
 declare i16 @llvm.abs.i16 ( i16 , i1 )
 declare i32 @llvm.abs.i32 ( i32 , i1 )
 declare i64 @llvm.abs.i64 ( i64 , i1 )
-declare i8 @llvm.vector.reduce.smin.v32i8(<32 x i8>)
 
 declare void @llvm.memset.p0.i32 ( i8*, i8,  i32 , i1 )
 declare void @llvm.memset.p0.i64 ( i8*, i8,  i64 , i1 )
@@ -36,6 +35,8 @@ declare double @llvm.floor.double ( double  )
 
 declare float @llvm.ceil.float ( float  )
 declare double @llvm.ceil.double ( double  )
+
+declare i8 @llvm.vector.reduce.smin.v32i8 ( <32 x i8>  )
 
 define i1 @FORT_equ_i8 ( i8 %x, i8 %y ) #0 {
 %r = icmp eq i8 %x, %y
@@ -1538,36 +1539,37 @@ call void @llvm.memcpy.p0.p0.i64 ( i8* %p, i8* %q,  i64 %n ,i1 0 )
 ret void
 }
 
-define <32 x i8> @FORT_load_v32_i8(ptr %p) #0
-{
-	%r = load <32 x i8>, <32 x i8>* %p
-	ret <32 x i8> %r
+
+define <32 x i8> @FORT_load_v32_i8 ( ptr %x ) #0 {
+%r = load <32 x i8> , <32 x i8>* %x
+ret <32 x i8> %r
 }
 
-define <32 x i8> @FORT_insert_element_v32_i8(<32 x i8> %v, i32 %i, i8 %x) #0 
-{
-  %r = insertelement <32 x i8> %v, i8 %x, i32 %i
-  ret <32 x i8> %r
+
+define <32 x i8> @FORT_insert_element_v32_i8 ( <32 x i8> %v, i32 %i, i8 %x ) #0 {
+%r = insertelement <32 x i8> %v, i8 %x, i32 %i
+ret <32 x i8> %r
 }
 
-define <32 x i8> @FORT_select_v32_i8(<32 x i8> %a, <32 x i8> %x, <32 x i8> %y) #0 {
-  %z = trunc <32 x i8> %a to <32 x i1>
-  %r = select <32 x i1> %z, <32 x i8> %x, <32 x i8> %y
-  ret <32 x i8> %r
+
+define <32 x i8> @FORT_select_v32_i8 ( <32 x i8> %a, <32 x i8> %x, <32 x i8> %y ) #0 {
+%z = trunc <32 x i8> %a to <32 x i1>
+%r = select <32 x i1> %z, <32 x i8> %x, <32 x i8> %y
+ret <32 x i8> %r
 }
 
-define <32 x i8> @FORT_equ_v32_i8(<32 x i8> %x, <32 x i8> %y) #0 {
-  %r = icmp eq <32 x i8> %x, %y
 
-  %rr = sext <32 x i1> %r to <32 x i8>
-
-  ret <32 x i8> %rr
+define <32 x i8> @FORT_equ_v32_i8 ( <32 x i8> %x, <32 x i8> %y ) #0 {
+%z = icmp eq <32 x i8> %x, %y
+%r = sext <32 x i1> %z to <32 x i8>
+ret <32 x i8> %r
 }
 
-define i8 @FORT_reduce_min_v32_i8(<32 x i8> %x) #0 {
-  %r = call i8 @llvm.vector.reduce.smin.v32i8(<32 x i8> %x)
-  ret i8 %r
-  }
+
+define i8 @FORT_reduce_min_v32_i8 ( <32 x i8> %x ) #0 {
+%r = call i8 @llvm.vector.reduce.smin.v32i8 ( <32 x i8> %x )
+ret i8 %r
+}
 
 
 attributes #0 = { alwaysinline }

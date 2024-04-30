@@ -107,10 +107,6 @@ transLayoutElemFieldDecl :: Show a => Fort.Abs.LayoutElemFieldDecl' a -> Result
 transLayoutElemFieldDecl x = case x of
   Fort.Abs.LayoutElemFieldDecl _ fielddecl -> failure x
 
-transLayoutElemTailRecDecl :: Show a => Fort.Abs.LayoutElemTailRecDecl' a -> Result
-transLayoutElemTailRecDecl x = case x of
-  Fort.Abs.LayoutElemTailRecDecl _ tailrecdecl -> failure x
-
 transLayoutElemExpDecl :: Show a => Fort.Abs.LayoutElemExpDecl' a -> Result
 transLayoutElemExpDecl x = case x of
   Fort.Abs.LayoutElemExpDecl _ expdecl -> failure x
@@ -177,7 +173,6 @@ transExp x = case x of
 transExpDecl :: Show a => Fort.Abs.ExpDecl' a -> Result
 transExpDecl x = case x of
   Fort.Abs.Binding _ binding exp -> failure x
-  Fort.Abs.TailRec _ tailrecdecls -> failure x
 
 transFieldDecl :: Show a => Fort.Abs.FieldDecl' a -> Result
 transFieldDecl x = case x of
@@ -240,7 +235,6 @@ transSize x = case x of
 transStmt :: Show a => Fort.Abs.Stmt' a -> Result
 transStmt x = case x of
   Fort.Abs.Stmt _ exp -> failure x
-  Fort.Abs.TailRecLet _ tailrecdecls -> failure x
   Fort.Abs.XLet _ exp1 exp2 -> failure x
 
 transTField :: Show a => Fort.Abs.TField' a -> Result
@@ -251,14 +245,6 @@ transTSum :: Show a => Fort.Abs.TSum' a -> Result
 transTSum x = case x of
   Fort.Abs.TCon _ uident type_ -> failure x
   Fort.Abs.TEnum _ uident -> failure x
-
-transTailRecDecl :: Show a => Fort.Abs.TailRecDecl' a -> Result
-transTailRecDecl x = case x of
-  Fort.Abs.TailRecDecl _ lident1 lident2 exp -> failure x
-
-transTailRecDecls :: Show a => Fort.Abs.TailRecDecls' a -> Result
-transTailRecDecls x = case x of
-  Fort.Abs.TailRecDecls _ layoutelemtailrecdecls -> failure x
 
 transType :: Show a => Fort.Abs.Type' a -> Result
 transType x = case x of

@@ -86,13 +86,6 @@ qualCaseAlt (CaseAlt pos altp e) = CaseAlt pos altp <$> subEnv altp (qualExp e)
 qualExpDecl :: ExpDecl -> M ExpDecl
 qualExpDecl x = case x of
   Binding pos p e -> Binding pos p <$> qualExp e -- binding p already removed from env
-  TailRec pos a -> TailRec pos <$> qualTailRecDecls a
-
-qualTailRecDecls :: TailRecDecls -> M TailRecDecls
-qualTailRecDecls (TailRecDecls pos ds) = TailRecDecls pos <$> mapM qualTailRecDecl ds -- don't remove the ds bindings
-
-qualTailRecDecl :: TailRecDecl -> M TailRecDecl
-qualTailRecDecl (TailRecDecl pos a b c) = TailRecDecl pos a b <$> subEnv b (qualExp c) -- binding 'a' should not be removed from env
 
 qualInfixInfo :: InfixInfo -> M InfixInfo
 qualInfixInfo (InfixInfo pos qn fx pr) = InfixInfo pos <$> qualQualLIdent qn <*> pure fx <*> pure pr
@@ -126,13 +119,6 @@ qualDecl fn x = case x of
 mkQNameExpDecl :: Text -> ExpDecl -> ExpDecl
 mkQNameExpDecl fn x = case x of
   Binding pos p e -> Binding pos (mkQNameBinding fn p) e
-  TailRec pos d -> TailRec pos (mkQNameTailRecDecls fn d)
-
-mkQNameTailRecDecls :: Text -> TailRecDecls -> TailRecDecls
-mkQNameTailRecDecls fn (TailRecDecls pos bs) = TailRecDecls pos $ fmap (mkQNameTailRecDecl fn) bs
-
-mkQNameTailRecDecl :: Text -> TailRecDecl -> TailRecDecl
-mkQNameTailRecDecl fn (TailRecDecl pos a b c) = TailRecDecl pos (mkQName fn a) b c
 
 mkQNameBinding :: Text -> Binding -> Binding
 mkQNameBinding fn = transformBi (mkQName fn :: LIdent -> LIdent)
@@ -199,7 +185,6 @@ qualStmts :: NonEmpty Stmt -> M (NonEmpty Stmt)
 qualStmts (x :| ys) = do
   case x of
     Let pos p e -> (:|) <$> (Let pos p <$> qualExp e) <*> subEnv p ys'
-    TailRecLet pos a -> (:|) <$> (TailRecLet pos <$> qualTailRecDecls a) <*> subEnv a ys'
     Stmt pos e -> (:|) <$> (Stmt pos <$> qualExp e) <*> ys'
   where
     ys' = case ys of

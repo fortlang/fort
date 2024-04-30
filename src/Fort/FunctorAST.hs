@@ -61,8 +61,6 @@ toLayoutElemCaseAlt (Abs.LayoutElemCaseAlt _ b) = toCaseAlt b
 
 toLayoutElemFieldDecl (Abs.LayoutElemFieldDecl _ b) = toFieldDecl b
 
-toLayoutElemTailRecDecl (Abs.LayoutElemTailRecDecl _ b) = toTailRecDecl b
-
 toLayoutElemExpDecl (Abs.LayoutElemExpDecl _ b) = toExpDecl b
 
 data AltPat a
@@ -212,7 +210,6 @@ toLayoutElemStmt :: MonadIO m => Abs.LayoutElemStmt' Position -> m (Stmt Positio
 toLayoutElemIfBranch :: MonadIO m => Abs.LayoutElemIfBranch' Position -> m (Exp Position, Exp Position)
 toLayoutElemCaseAlt :: MonadIO m => Abs.LayoutElemCaseAlt' Position -> m (CaseAlt Position)
 toLayoutElemFieldDecl :: MonadIO m => Abs.LayoutElemFieldDecl' Position -> m (FieldDecl Position)
-toLayoutElemTailRecDecl :: MonadIO m => Abs.LayoutElemTailRecDecl' Position -> m (TailRecDecl Position)
 toLayoutElemExpDecl :: MonadIO m => Abs.LayoutElemExpDecl' Position -> m (ExpDecl Position)
 toAltPat :: MonadIO m => Abs.AltPat' Position -> m (AltPat Position)
 toBinding :: MonadIO m => Abs.Binding' Position -> m (Binding Position)
@@ -278,17 +275,14 @@ toExp x = case x of
 
 data ExpDecl a
     = Binding a (Binding a) (Exp a)
-    | TailRec a (TailRecDecls a)
   deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 instance Pretty (ExpDecl a) where
   pretty x = case x of
     Binding _ b c -> binop "=" b c
-    TailRec _ b -> pretty b
 
 toExpDecl x = case x of
   Abs.Binding a b c -> Binding a <$> toBinding b <*> toExp c
-  Abs.TailRec a b -> TailRec a <$> toTailRecDecls b
 
 data FieldDecl a = FieldDecl a (LIdent a) (Exp a)
   deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
@@ -525,12 +519,10 @@ toSize x = case x of
 data Stmt a
     = Let a (Pat a) (Exp a)
     | Stmt a (Exp a)
-    | TailRecLet a (TailRecDecls a)
   deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
 
 toStmt x = case x of
     Abs.Stmt a b -> Stmt a <$> toExp b
-    Abs.TailRecLet a b -> TailRecLet a <$> toTailRecDecls b
     Abs.XLet a b c -> Let a <$> (toExp b >>= expToPat) <*> toExp c
 
 expToPat :: MonadIO m => Exp Position -> m (Pat Position)
@@ -544,7 +536,6 @@ expToPat x = case x of
 
 instance Pretty (Stmt a) where
   pretty x = case x of
-    TailRecLet _ a -> pretty a
     Stmt _ a -> pretty a
     Let _ a b -> binop "=" a b
 
@@ -583,27 +574,8 @@ toTSum x = case x of
   Abs.TCon a b c -> TCon a <$> toUIdent b <*> toType c
   Abs.TEnum a b -> TEnum a <$> toUIdent b
 
-data TailRecDecl a
-    = TailRecDecl a (LIdent a) (LIdent a) (Exp a)
-  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
-
-toTailRecDecl :: MonadIO m => Abs.TailRecDecl' Position -> m (TailRecDecl Position)
-toTailRecDecl (Abs.TailRecDecl a b v c) = TailRecDecl a <$> toLIdent b <*> toLIdent v <*> toExp c
-
-instance Pretty (TailRecDecl a) where
-  pretty (TailRecDecl _ b v c) = pretty b <+> "=" <+> "\\" <+> pretty v <+> "->" <+> pretty c
-
-data TailRecDecls a = TailRecDecls a (NonEmpty (TailRecDecl a))
-  deriving (Show, Read, Functor, Foldable, Traversable, Data, Typeable, Generic)
-
-toTailRecDecls :: MonadIO m => Abs.TailRecDecls' Position -> m (TailRecDecls Position)
-toTailRecDecls (Abs.TailRecDecls a bs) = TailRecDecls a <$> mapM toLayoutElemTailRecDecl (fromList bs)
-
 layout :: Pretty a => Doc ann -> NonEmpty a -> Doc ann
 layout a bs = nest 2 $ vcat (a : fmap pretty (toList bs))
-
-instance Pretty (TailRecDecls a) where
-  pretty (TailRecDecls _ bs) = layout "tailrec" bs
 
 data NonEmpty2 a
   = Cons2 a (NonEmpty a)
@@ -724,7 +696,6 @@ instance Positioned (Scalar Position) where
 instance Positioned (ExpDecl Position) where
   positionOf x = case x of
     Binding pos _ _ -> pos
-    TailRec pos _ -> pos
 
 instance Positioned (Type Position) where
   positionOf x = case x of
@@ -758,7 +729,6 @@ instance Positioned (Stmt Position) where
   positionOf x = case x of
     Let pos _ _ -> pos
     Stmt pos _ -> pos
-    TailRecLet pos _ -> pos
 
 instance Positioned (AltPat Position) where
   positionOf x = case x of

@@ -2,13 +2,11 @@ qualifier Prelude = "lib/prelude.fort"
 
 myloop = \i0 -> do
   c = 42
-  tailrec
-    go = \i -> if
-     i > 5 -> 11
+  loop i0 $ \i -> if
+     i > 5 -> Done 11
      otherwise -> do
        print c
-       go (i + 1)
-  go i0
+       Continue (i + 1)
 
 main = do
   ac = myloop 0

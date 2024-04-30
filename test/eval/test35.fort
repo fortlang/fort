@@ -1,22 +1,19 @@
-sub = subtract
-
 qualifier Prelude = "lib/prelude.fort"
 
 main = do
-  tailrec
-    stuff = \i -> i
-    blah = \i -> case i of
-      1 -> Odd
-      _ -> even i
+  stuff = \i -> i
+  blah = \i -> case i of
+    1 -> Done Odd
+    _ -> Continue (Even, i)
 
-    even = \i -> case i of
-      0 -> Even
-      1 -> blah i
-      2 -> odd (i - 1)
-      _ -> odd (i - 1)
-
-    odd = \i -> case i of
+  go = \(x, i) -> case x of
+    Odd -> case i of
       0 -> blah i
-      _ -> even (i - 1)
+      _ -> Continue (Even, i - 1)
+    Even -> case i of
+      0 -> Done Even
+      1 -> blah i
+      2 -> Continue (Odd, i - 1)
+      _ -> Continue (Odd, i - 1)
 
-  println (even 5)
+  println $ loop (cast Even `Sum{ Even; Odd }`, 5) go

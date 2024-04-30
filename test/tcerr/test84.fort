@@ -1,15 +1,25 @@
 
 qualifier Prelude = "lib/prelude.fort"
 
-main = do
-  tailrec
-    even = \i -> if
-      i == 0 -> Even
-      True -> odd True
+type Loop = Sum
+  EvenLoop: Int
+  OddLoop: Int
 
-    odd = \i -> if
-      i == 0 -> Odd
-      True -> even (i - 1)
+evenLoop = \i -> cast (EvenLoop i) `Loop`
+oddLoop = \i -> cast (OddLoop i) `Loop`
+
+main = do
+  go = \a0 -> do
+    loop a0 $ \a -> case a of
+      EvenLoop i -> if
+        i == 0 -> Done Even
+        True -> Continue (oddLoop True)
+      OddLoop i -> if
+        i == 0 -> Done Odd
+        True -> Continue (evenLoop (i - 1))
+
+  even = \x -> go (evenLoop x)
+  odd = \x -> go (oddLoop x)
 
   print "5 is "
   println (even 5)

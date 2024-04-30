@@ -3,32 +3,60 @@ module Fort.FIL
 , Sz
 , RegisterId(..)
 , UIdent
-, TailCallId(..)
 )
 
 where
 
-import Data.Bifunctor
-import Fort.Utils hiding (If, Extern, UInt, Let, TailRecDecls, Decl, Scalar, Unit, Stmt)
-import Fort.Val (RegisterId, VScalar(..), VStmt(..), VDecl(..), TailCallId(..), VInt(..), VFloat(..), VUInt(..), floatSz, intSz, uintSz)
-import qualified Data.Map as Map
+import Fort.Utils hiding (If, Extern, UInt, Let, Decl, Scalar, Unit, Stmt)
+import Fort.Val (RegisterId, VScalar(..), VStmt(..), VDecl(..), VInt(..), VFloat(..), VUInt(..), floatSz, intSz, uintSz)
 import qualified Fort.Type as Type
 import qualified Fort.Val as Val
+import qualified Data.Map as Map
 
-filModules :: [(FilePath, Val.Prog)] -> [(FilePath, Prog)]
-filModules xs = [ (fn, fmap filFunc prg) | (fn, prg) <- xs ]
+filModules :: [(FilePath, Val.Prog)] -> IO [(FilePath, Prog)]
+filModules xs = sequence [ (fn, ) <$> mapM filFunc prg | (fn, prg) <- xs ]
 
 type Prog = Map Text Func
 
-filFunc :: Val.Func -> Func
-filFunc x = Func
-  { retTy = fromTy $ Val.retTy x
-  , args = fmap fromVal $ case Val.arg x of
-      Val.VUnit _ -> []
-      Val.VTuple _ vs -> toList vs
-      v -> [v]
-  , body = fromBlock $ rewriteBi Val.flattenVal $ Val.body x
-  }
+filFunc :: Val.Func -> IO Func
+filFunc x = do
+  blk <- rewriteBiM flattenVal $ Val.body x
+  pure $ Func
+    { retTy = fromTy $ Val.retTy x
+    , args = fmap fromVal $ case Val.arg x of
+        Val.VUnit _ -> []
+        Val.VTuple _ vs -> toList vs
+        v -> [v]
+    , body = fromBlock blk
+    }
+
+flattenVTuple :: Val.Val -> [Val.Val]
+flattenVTuple x = case x of
+  Val.VTuple _ vs -> toList vs
+  _ -> [x]
+
+flattenVal :: Val.Val -> IO (Maybe Val.Val)
+flattenVal x0 = case x0 of
+  Val.VRecord _ m -> f $ fmap snd $ sortByFst $ Map.toList m
+  Val.VSum _ k m -> f (k : fmap snd (sortByFst [ (con, v) | (con, Just v) <- Map.toList m ]))
+  Val.VArray _ _ vs -> f $ toList vs
+  Val.VTuple _ vs | all isFlatVal vs -> pure Nothing
+  Val.VTuple _ vs -> f $ concatMap flattenVTuple vs
+  Val.VPtr _ _ a -> pure $ Just a
+  Val.VIndexed _ _ _ a -> pure $ Just a
+  _ | isFlatVal x0 -> pure Nothing
+  _ -> err101 "unable to simplify value" x0 noTCHint
+  where
+    f v = Just <$> mkVTuple v
+    isFlatVal v = case v of
+      Val.VType{} -> True
+      Val.VUnit{} -> True
+      Val.VScalar{} -> True
+      _ -> False
+    mkVTuple xs = case xs of
+      [] -> unreachable101 "empty tuple" x0 noTCHint
+      [x] -> pure x
+      x : y : rest -> pure $ Val.VTuple (positionOf x) (cons2 x (y :| rest))
 
 data Func = Func{ retTy :: Ty, args :: [Val], body :: Block }
   deriving (Show, Data)
@@ -48,15 +76,13 @@ data Result
 
 data Decl
   = Let [Val] Stmt
-  | TailRecDecls TailCallId (Map TailCallId ([Val], Block))
-  | TailCall TailCallId [Val]
   deriving (Show, Data)
 
 data Stmt
   = Call Text [Val]
   | Switch Val Block [Alt]
   | If Val Block Block
-  | CallTailCall TailCallId [Val]
+  | Loop [Val] [Val] Val Block
   deriving (Show, Data)
 
 data Alt
@@ -230,13 +256,10 @@ instance TypeOf Scalar where
 fromAlt :: Val.Alt -> Alt
 fromAlt x = case x of
   Val.AltScalar a blk -> Alt (fromVScalar a) $ fromBlock blk
-  Val.AltDefault{} -> unreachable "fromAlt:default alt not removed" x
 
 fromDecl :: VDecl -> Decl
 fromDecl x = case x of
   VLet a b -> Let (fromTuple a) $ fromStmt b
-  VTailRecDecls a m -> TailRecDecls a $ fmap (Data.Bifunctor.bimap fromTuple fromBlock) m
-  VTailCall a b -> TailCall a $ fromTuple b
 
 fromStmt :: VStmt -> Stmt
 fromStmt x = case x of
@@ -245,10 +268,10 @@ fromStmt x = case x of
     [va] -> Switch va (fromBlock b) $ fmap fromAlt cs
     vs -> unreachable "expected exactly one switch value" vs
   VIf a bs cs -> If (fromVal a) (fromBlock bs) (fromBlock cs)
-  VCallTailCall a b -> CallTailCall a $ fromTuple b
+  VLoop i j k blk -> Loop (fromTuple i) (fromTuple j) (fromVal k) (fromBlock blk)
 
 fromTuple :: Val.Val -> [Val]
-fromTuple x = fmap fromVal $ filter (not . Val.isNone) $ case x of
+fromTuple x = fmap fromVal $ case x of
   Val.VTuple _ bs -> toList bs
   _ -> [x]
 
@@ -344,19 +367,16 @@ ppTuple xs = case xs of
 
 instance Pretty Decl where
   pretty x = case x of
-    TailRecDecls _ m -> "tailrec" <+> vlist ""
-      [ pretty a <+> "= \\" <+> ppTuple (fmap pretty bs) <+> "->" <+> pretty c | (a, (bs, c)) <- Map.toList m ]
     Let a b -> case a of
       [Unit _] -> pretty b
       _ -> ppTuple (fmap pretty a) <+> "=" <+> pretty b
-    TailCall a b -> "tailcall" <+> pretty a <+> ppTuple (fmap pretty b)
 
 instance Pretty Stmt where
   pretty x = case x of
     If a b c -> "if" <+> nest 2 (vcat [ pretty a, "then" <+> pretty b, "else" <+> pretty c ])
     Call a b -> "call" <+> pretty a <+> ppTuple (fmap pretty b)
-    CallTailCall a b -> "calltc" <+> pretty a <+> ppTuple (fmap pretty b)
     Switch a blk alts -> "switch" <+> pretty a <+> vlist "of" ("<default> ->" <+> pretty blk : fmap pretty alts)
+    Loop i j k blk -> "loop" <+> ppTuple (fmap pretty i) <+> ppTuple (fmap pretty j) <+> pretty k <+> pretty blk
 
 instance Pretty Result where
   pretty x = case x of

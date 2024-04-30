@@ -1,0 +1,1 @@
+main = Prim.loop (0, \~x -> Done ())

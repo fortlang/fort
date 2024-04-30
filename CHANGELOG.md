@@ -1,5 +1,9 @@
 # Revision history for fort
 
+## 0.1.5.0 -- 2024-05-02
+    removed tailrec construct in favor of simpler primitive Prim.loop function
+    preliminary SIMD support
+
 ## 0.1.4.0 -- 2024-02-27
     numeric literals are now case insensitive and can contain underscores
     bugfix in prelude.fort which caused the colorize example to fail

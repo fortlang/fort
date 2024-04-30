@@ -69,7 +69,6 @@ set-font = \tok -> case tok of
   Operator -> reserved
   Qualifier -> reserved
   VRecord -> reserved
-  TailRec -> reserved
   Type -> reserved
   Where -> reserved
   With -> reserved

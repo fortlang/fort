@@ -129,7 +129,7 @@ err111ST msg a b c = lift $ TC.err111ST msg a b c
 initEnv :: Bool -> Env
 initEnv b =
   Map.insert (mkTok noPosition "Prim.slow-safe-build") (VScalar noPosition $ VBool noPosition b) $
-  Map.mapKeys (\nm -> LIdent noPosition nm) $
+  Map.mapKeys (LIdent noPosition) $
   Map.mapWithKey (\nm _ -> XVCall noPosition nm) primCalls
 
 insertAlt :: (VScalar, Block) -> [(VScalar, Block)] -> M [(VScalar, Block)]
@@ -185,50 +185,8 @@ evalCaseAlts alts env val0 (CaseAlt _ altp e : rest) = case altp of
 -- this makes lots of extra registers, counting on the llvm optimizer to clean them up
 -- e.g. 1 register can be used for the results of a multiway if but we make n - 1
 
-pushTailCall :: TailCallId -> Val -> M ()
-pushTailCall x y =
-  modify' $ \st -> st{ tailcalls = (x, y) : tailcalls st }
-
 evalBlock :: Env -> Exp -> M Block
 evalBlock env x = evalBlockM (eval env x)
-
-evalXVTailRecDecls :: Env -> Map LIdent TailRecDecl -> LIdent -> Val -> M (TailCallId, [(TailCallId, (Val, Block))])
-evalXVTailRecDecls env m0 nm0 val0 = do
-  bs <- sequence [ ((v, d),) <$> freshTailCallId v | (v, d) <- Map.toList m0 ]
-  let m = Map.fromList [ (tcid, d) | ((_, d), tcid) <- bs ]
-  let env' = Map.fromList [ (v, XVTailCall (positionOf v) tcid) | ((v, _), tcid) <- bs ]
-
-  case [ tcid | ((v, _), tcid) <- bs, v == nm0 ] of
-    [] -> unreachable001 "evalXVTailRecDecls: empty tcids" ()
-    tcid : _ -> (tcid, ) <$> evalXVTailRecDecls' (env' <> env) m tcid val0
-
-evalXVTailRecDecls' :: Env -> Map TailCallId TailRecDecl -> TailCallId -> Val -> M [(TailCallId, (Val, Block))]
-evalXVTailRecDecls' env m0 tcid0 val0 = do
-  r <- go m0 [(tcid0, val0)]
-  pure r
-  where
-  go _ [] = pure []
-  go m ((tcid, val) : rest) = case Map.lookup tcid m of
-    Nothing -> go m rest
-    Just (TailRecDecl _ _ v e) -> do
-      trArg <- freshVal $ typeOf val
-      blk <- evalTailRecBlock (Map.insert v trArg env) e
-      ((tcid, (trArg, blk)) :) <$> go (Map.delete tcid m) (rest ++ blockTailCalls blk)
-
-evalTailRecDecls :: Env -> TailRecDecls -> Env
-evalTailRecDecls env (TailRecDecls pos ds) =
-  Map.mapWithKey (\k _ -> XVTailRecDecls pos env m k) m
-  where
-    m = Map.fromList [ (nm, b) | b@(TailRecDecl _ nm _ _) <- toList ds ]
-
-evalTailRecBlock :: Env -> Exp -> M Block
-evalTailRecBlock env e = do
-  tcs0 <- gets tailcalls
-  modify' $ \st -> st{ tailcalls = [] }
-  blk <- evalBlock env e
-  tcs <- gets tailcalls
-  modify' $ \st -> st{ tailcalls = tcs0 }
-  pure $ blk { blockTailCalls = tcs }
 
 evalFieldDecl :: Env -> FieldDecl -> M (LIdent, Val)
 evalFieldDecl env (FieldDecl _ lbl e) = (lbl, ) <$> eval env e
@@ -261,15 +219,6 @@ evalExpDecls = go
 evalExpDecl :: Env -> ExpDecl -> M Env
 evalExpDecl env x = case x of
   Binding _ p e -> evalBinding env p e
-  TailRec _ a -> do
-    let env' = evalTailRecDecls env a
-    pure env'
-
-freshTailCallId :: LIdent -> M TailCallId
-freshTailCallId v = do
-  i <- gets nextTailCallId
-  modify' $ \st -> st{ nextTailCallId = i + 1 }
-  pure TailCallId{ tailCallName = v, tailCallId = i }
 
 evalBinding :: Env -> Binding -> Exp -> M Env
 evalBinding env x e = case x of
@@ -284,6 +233,7 @@ canBeDelayed v e = case filter (== nameOf v) $ freeVarsOf e of
 eval :: Env -> Exp -> M Val
 eval env x = traceEval x $ case x of
     Qualified pos c v -> eval env $ Var pos $ mkQName (textOf c) v
+    Var pos v | textOf v == "Prim.loop" -> pure $ XVLoop pos
     Var _ v -> traceEval v $ case Map.lookup v env of
       Nothing -> err100ST "unknown variable" v
       Just val -> case val of
@@ -295,24 +245,34 @@ eval env x = traceEval x $ case x of
     App _ a b -> do
       va <- eval env a
       case va of
+        XVLoop _ -> do
+          vb <- eval env b
+          case vb of
+            VTuple _ (Cons2 i0 (vf :| [])) -> case vf of
+              XVLam _ env' bnd e -> case bnd of
+                Immediate _ p -> do
+                  vi <- freshVal $ typeOf i0
+                  blk <- evalBlockM $ do
+                    env'' <- match p vi
+                    eval (env'' <> env') e
+                  (eqblk, (mc, mr)) <- case blockResult blk of
+                    VSum pos k m -> do
+                      eqk <- evalBlockM $ do
+                        cont <- VScalar pos <$> evalCon (mkTok pos "Continue")
+                        eqVal k cont
+                      (eqk,) <$> lift (TC.unLoopSum m)
+                    _ -> err100ST "loop expects Continue/Done sum result value" e
+                  let pos = positionOf e
+                  let r = fromMaybe (VUnit pos) mr
+                  pushDecl $ VLet r $ VLoop vi i0 (blockResult eqblk) blk{ blockDecls = blockDecls blk ++ blockDecls eqblk,  blockResult = fromMaybe (VUnit pos) mc }
+                  pure r
+                _ -> err100ST "expected immediate binding in 'loop' lambda" bnd
+              _ -> err100ST "expected lambda as second argument to 'loop'" vf
+            _ -> err100ST "expected tuple argument to Prim.loop" vb
+
         XVCall _ nm -> do
           tbl <- gets calls
           eval env b >>= lookup_ nm tbl
-
-        XVTailCall pos nm -> do
-          vb <- eval env b
-          pushTailCall nm vb
-          pushDecl $ VTailCall nm vb
-          pure $ XVNone pos
-
-        XVTailRecDecls _ env' m nm -> do
-          vb <- eval env b
-          (tcid, tds) <- evalXVTailRecDecls env' m nm vb
-          (r, rs) <- joinVals $ fmap (blockResult . snd . snd) tds
-          let tds' = [ (tid, (trArg, blk{ blockResult = rt })) | (rt, (tid, (trArg, blk))) <- zip rs tds ]
-          pushDecl $ VTailRecDecls tcid $ Map.fromList tds'
-          pushDecl $ VLet r $ VCallTailCall tcid vb
-          pure r
 
         XVLam _ env' bnd e -> do
             let bnd' = case bnd of
@@ -340,9 +300,7 @@ eval env x = traceEval x $ case x of
 
     Case _ a bs -> do
       va <- eval env a
-      case va of
-        XVNone{} -> err111ST "unexpected case value" va a (typeOf va)
-        _ -> evalCaseAlts [] env va $ toList bs
+      evalCaseAlts [] env va $ toList bs
 
     Do pos (c :| cs) -> case cs of
       [] -> case c of
@@ -357,9 +315,6 @@ eval env x = traceEval x $ case x of
           eval env $ Do pos $ NE.fromList cs
         Let _ p e -> do
           env' <- eval env e >>= match p
-          eval (env' <> env) $ Do pos $ NE.fromList cs
-        TailRecLet _ a -> do
-          let env' = evalTailRecDecls env a
           eval (env' <> env) $ Do pos $ NE.fromList cs
 
     Where _ a bs -> do

@@ -14,15 +14,10 @@ InfixInfo ::= QualLIdent Fixity ADouble
 
 ExpDecl nonterminal
   Binding ::= Binding "=" Exp
-  TailRec ::= TailRecDecls
 
 Binding nonterminal
   Delayed ::= "~" LIdent
   Immediate ::= Pat
-
-TailRecDecls ::= layout "tailrec" TailRecDecl
-
-TailRecDecl ::= LIdent "=" "\\" LIdent "->" .Typed ;; BAL: can have a type on the LIdents...
 
 Exp nonterminal
   Where ::= .Lam layout "where" ExpDecl
@@ -62,7 +57,6 @@ FieldDecl ::= LIdent "=" Exp
 CaseAlt ::= AltPat "->" Exp
 
 Stmt nonterminal
-  TailRecLet ::= TailRecDecls
   Stmt ::= Exp
   XLet ::= Exp "=" Exp
     ;; parsed as Exp then converted to Pat

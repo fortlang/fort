@@ -105,7 +105,7 @@ fort opts = do
             
             when (showSimplify opts) $ mapM_ (pp "(simplify)") msstmts
             when doFIL $ do
-              let msfil = filModules msstmts
+              msfil <- filModules msstmts
               when (showFIL opts) $ mapM_ (pp "(fil)") msfil
               when doLLVM $ do
                 msllvm <- llvmModules msfil

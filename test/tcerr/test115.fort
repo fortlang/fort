@@ -1,0 +1,4 @@
+main = do
+  loop 0 $ \i -> 7
+
+qualifier Prelude = "lib/prelude.fort"

@@ -107,12 +107,7 @@ bracket = \pre post f -> do
   _ = post
   a
 
-loop = \a0 f -> do
-  tailrec
-    go = \a -> case f a of
-      Continue a' -> go a'
-      Done b -> b
-  go a0
+loop = curry Prim.loop
 
 assert = \r a -> when (Prim.slow-safe-build && not r) $ panic $ AssertionFailed a
 ;; BAL: add a builtin that will evaluate to the file, line, col
@@ -181,6 +176,7 @@ clamp = \x y z -> min (max x y) z
 
 countof = Prim.countof
 typeof = Prim.typeof
+typeof-element = Prim.typeof-element
 
 from-ok = \a0 x -> case x of
   Ok a -> a

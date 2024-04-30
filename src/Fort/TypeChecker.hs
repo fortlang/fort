@@ -10,12 +10,12 @@ import Fort.FreeVars
 import Fort.Prims
 import Fort.Type hiding (M, evalType_)
 import Fort.Utils hiding (err10n, err100, err101, err110)
-import qualified Fort.Errors as Err
 import Fort.Val (OpSt(..), initOpSt, scalarToVScalar, lookupField)
-import qualified Data.List.NonEmpty as NE
 import qualified Data.List as List
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Fort.Errors as Err
 import qualified Fort.Type as Type
 
 typeCheckModules :: [(FilePath, Map Text Exported)] -> IO ()
@@ -57,7 +57,7 @@ evalDecls ds = evalExpDecls initEnv [ a | ExpDecl _ a <- ds ]
 initEnv :: TyEnv
 initEnv =
   Map.insert (LIdent noPosition "Prim.slow-safe-build") (TyBool noPosition) $
-  Map.mapKeys (\nm -> LIdent noPosition nm) $
+  Map.mapKeys (LIdent noPosition) $
   Map.mapWithKey (\nm _ -> XTyPrimCall noPosition nm) primCallTys
 
 evalSt :: [Decl] -> M a -> IO a
@@ -81,60 +81,6 @@ type M a = StateT TCSt (StateT OpSt (StateT TySt IO)) a
 evalFieldDecls :: TyEnv -> NonEmpty FieldDecl -> M (Map LIdent Ty)
 evalFieldDecls env bs = Map.fromList <$> sequence [ (fld, ) <$> eval env a | FieldDecl _ fld a <- toList bs ]
 
-freshTyUnknown :: LIdent -> M Ty
-freshTyUnknown fn = XTyUnknown (positionOf fn) fn <$> freshUnknown
-
-tailRecDeclNm :: TailRecDecl -> LIdent
-tailRecDeclNm (TailRecDecl _ nm _ _) = nm
-
-mkTailRecTyFun :: Ty -> Ty
-mkTailRecTyFun t = TyFun pos t $ TyNone pos
-  where pos = positionOf t
-
-evalTailRecDecl :: TyEnv -> Ty -> TailRecDecl -> [TailRecDecl] -> M Ty
-evalTailRecDecl env tv (TailRecDecl _ nm v e) ds = do
-  let env' = Map.fromList [ (nm, mkTailRecTyFun tv), (v, tv) ]
-  unkEnv <- Map.fromList <$> mapM mkU (fmap tailRecDeclNm ds)
-  eval (env' <> unkEnv <> env) e
-    where
-      mkU n = do
-        t <- freshTyUnknown n
-        pure (n, mkTailRecTyFun t)
-
-evalTailRecDecls :: TyEnv -> LIdent -> Ty -> NonEmpty TailRecDecl -> M Ty
-evalTailRecDecls env nm t = goTailRecDecls mempty env [(nm, t)] . toList
-
-goTailRecDecls :: [Ty] -> Map LIdent Ty -> [(LIdent, Ty)] -> [TailRecDecl] -> M Ty
-goTailRecDecls rs env xs0 ds0 = case xs0 of
-  (nm, t) : xs | not (null ds0) -> case List.partition ((== nm) . tailRecDeclNm) ds0 of
-    ([d], ds) -> do
-      r <- evalTailRecDecl env t d ds
-      xs' <- popConstraints
-      goTailRecDecls (r : rs) (Map.insert nm (mkTailRecTyFun t) env) (xs' ++ xs) ds
-    a -> unreachable101 "TypeChecker:goTailRecDecls" nm a
-
-  _ -> case reverse rs of
-    r : _ -> pure r
-    a -> unreachable001 "TypeChecker:goTailRecDecls" a
-
-popConstraints :: M [(LIdent, Ty)]
-popConstraints = do
-  cs <- Map.elems <$> gets constraints
-  modify' $ \st -> st{ constraints = mempty }
-  pure cs
-
-pushConstraint :: LIdent -> Int -> Ty -> M ()
-pushConstraint nm i pt = do
-  tbl <- gets constraints
-  pt'' <- case Map.lookup i tbl of
-    Nothing -> pure pt
-    Just (_, pt') -> unify pt pt'
-  modify' $ \st -> st{ constraints = Map.insert i (nm, pt'') $ constraints st }
-
-envTailRecDecls :: TyEnv -> TailRecDecls -> M TyEnv
-envTailRecDecls env (TailRecDecls pos ds) =
-  pure $ Map.fromList [ (v, XTyTailRecDecls pos env ds v) | TailRecDecl _ v _ _ <- toList ds ]
-
 evalExpDecls :: TyEnv -> [ExpDecl] -> M TyEnv
 evalExpDecls = go
   where
@@ -148,7 +94,6 @@ evalExpDecl env x = case x of
   Binding _ p e -> do
     t <- eval env e
     matchBinding p t
-  TailRec _ a -> envTailRecDecls env a
 
 -- UIdent or Scalar
 
@@ -203,16 +148,13 @@ evalAlts env ty mrt (CaseAlt _ altp e : rest) = case altp of
 instance Typed Scalar where
   typeOf = typeOf . scalarToVScalar
 
--- BAL: use the actual positions from Ty since we have those now
 unifies :: NonEmpty Ty -> M Ty
 unifies (x :| xs) = foldM unify x xs
 
-unify :: Ty -> Ty -> M Ty -- BAL: rewrite with go
+unify :: Ty -> Ty -> M Ty
 unify tya0 tyb0 = go tya0 tyb0
   where
     go :: Ty -> Ty -> M Ty
-    go tya TyNone{} = pure tya
-    go TyNone{} tyb = pure tyb
     go tya tyb = case (tya, tyb) of
       (TyRecord pos m, TyRecord _ n) | isEqualByKeys m n -> do
         o <- intersectionWithM go m n
@@ -283,6 +225,12 @@ err100ST msg a = err10nST msg a ([] :: [Int])
 err10nST :: (Positioned a, Pretty a, Pretty b) => Doc () -> a -> [b] -> M c
 err10nST msg a bs = stackTraceHint >>= \stHint -> Err.err10n msg a (fmap (show . pretty) bs ++ stHint)
 
+err1n0ST :: (Positioned a, Pretty a, Positioned b, Pretty b) => Doc () -> a -> [b] -> M c
+err1n0ST msg a bs = stackTraceHint >>= \stHint -> Err.err1nn msg a bs stHint
+
+errn00ST :: (Positioned a, Pretty a) => Doc () -> [a] -> M c
+errn00ST msg bs = stackTraceHint >>= \stHint -> Err.errn0n msg bs stHint
+
 err101ST :: (Positioned a, Pretty a, Pretty b) => Doc () -> a -> b -> M c
 err101ST msg a b = err10nST msg a [b]
 
@@ -320,9 +268,15 @@ stackTraceHint = do
               (Position _ (Just (_, ia)), Position _ (Just (_, ib))) -> compare ia ib
               (pa, pb) -> compare pa pb
 
+evalLamApp :: TyEnv -> Binding -> Exp -> Ty -> M Ty
+evalLamApp env bnd e vb = do
+  env' <- matchBinding bnd vb
+  eval (env' <> env) e
+
 eval :: TyEnv -> Exp -> M Ty
 eval env x = traceEval x $ case x of
   Qualified pos c v -> eval env $ Var pos $ mkQName (textOf c) v
+  Var pos v | textOf v == "Prim.loop" -> pure $ XTyLoop pos
   Var _ v -> traceEval v $ case Map.lookup v env of
     Nothing -> err100ST "unknown variable" v
     Just ty -> pure ty
@@ -332,23 +286,34 @@ eval env x = traceEval x $ case x of
     va <- eval env a
     vb <- eval env b
     case va of
-      XTyTailRecDecls _ env' ds fn -> evalTailRecDecls env' fn vb ds
+      XTyLoop _ -> case vb of
+        TyTuple _ (Cons2 ti (XTyLam _ env' bnd e :| [])) -> do
+          t <- evalLamApp env' bnd e ti
+          case t of
+            TySum pos m -> do
+              (mti, mtr) <- unLoopSum m
+              case mti of
+                Just ti' -> if
+                  | ti' == ti -> pure ()
+                  | otherwise -> err1n0ST "expected equal types for loop variable" x [ti, ti']
+                Nothing -> pure ()
+              case mtr of
+                Nothing -> pure $ TyUnit pos -- BAL: infinite loop.  Have a special type?
+                Just tr -> pure tr
+
+            _ -> err110ST "expected sum type result to 'loop'" x t
+        _ -> err110ST "expected initializer and lambda arguments to 'loop'" b vb
 
       XTyPrimCall _ nm -> case lookup_ nm primCallTys vb of
         Right t -> pure t
         Left msg -> err101ST msg b vb
 
-      XTyLam _ env' bnd e -> do
-          env'' <- matchBinding bnd vb
-          eval (env'' <> env') e
+      XTyLam _ env' bnd e -> evalLamApp env' bnd e vb
 
       TySum pos m -> case Map.toList m of
         [(c, Nothing)] -> pure $ TySum pos $ Map.singleton c $ Just vb
         _ -> err101ST "unexpected sum type in application" a va
 
-      TyFun _ (XTyUnknown _ fn i) tc -> do
-        pushConstraint fn i vb
-        pure tc
       TyFun _ tb tc -> do
         _ <- unify tb vb
         pure tc
@@ -447,9 +412,19 @@ evalStmts = go
           te <- eval env e
           env' <- match p te
           go (env' <> env) $ NE.fromList cs
-        TailRecLet _ a -> do
-          env' <- envTailRecDecls env a
-          go (env' <> env) $ NE.fromList cs
 
-
+unLoopSum :: Map UIdent (Maybe a) -> M (Maybe a, Maybe a)
+unLoopSum m = do
+  let xs = [ k | k <- Map.keys m, textOf k /= "Done", textOf k /= "Continue" ]
+  if
+    | not (null xs) -> errn00ST "expected either Done <val> or Continue <val> as loop result" xs
+    | otherwise -> do
+        v1 <- f "Continue"
+        v2 <- f "Done"
+        pure (v1, v2)
+  where
+    f s = case Map.lookup s (Map.mapKeys textOf m) of
+      Just (Just a) -> pure $ Just a
+      Just Nothing -> errn00ST (pretty s <+> "with no value") [ k | k <- Map.keys m, textOf k == s ]
+      Nothing -> pure Nothing
 

@@ -39,7 +39,7 @@ evalIf v t f = case v of
   _ -> do
     blkt <- evalBlockM t
     blkf <- evalBlockM f
-    (r, [rt, rf]) <- joinVals [blockResult blkt, blockResult blkf]
+    (r, [rt, rf]) <- joinVals (blockResult blkt) [blockResult blkf]
     pushDecl $ VLet r $ VIf v (blkt{ blockResult = rt }) (blkf{ blockResult = rf })
     pure r
 
@@ -61,8 +61,6 @@ templateOfSumDataVals = joinSumDataVals templateOfVals
 
 templateOfVals :: Val -> Val -> M Val
 templateOfVals x y = case (x, y) of
-  (XVNone{}, _) -> pure y
-  (_, XVNone{}) -> pure x
   _ | compareVals x y == IsEqual -> pure x
   (VRecord pos bs, VRecord _ cs) -> VRecord pos <$> intersectionWithM templateOfVals bs cs
   (VArray pos t bs, VArray _ _ cs) | NE.length bs == NE.length cs -> VArray pos t . NE.fromList <$> zipWithM templateOfVals (toList bs) (toList cs)
@@ -152,20 +150,16 @@ unionVals x y = case (x, y) of
   (VSum pos k bs, VSum _ l cs) -> VSum pos <$> unionVals k l <*> unionWithM (joinSumDataVals unionVals) bs cs
   (VPtr pos t a, VPtr _ _ b) -> VPtr pos t <$> unionVals a b
   (VIndexed pos t sz a, VIndexed _ _ _ b) -> VIndexed pos t sz <$> unionVals a b
-  (XVNone{}, _) -> pure x -- BAL: should this be pure y?
   (VUnit{}, _) -> pure x
   _ | isRegisterVal x -> pure x
   _ -> unreachable110 "unable to union values" x y
 
-joinVals :: [Val] -> M (Val, [Val])
-joinVals vs = do
-  rval <- foldM templateOfVals (XVNone pos) vs
+joinVals :: Val -> [Val] -> M (Val, [Val])
+joinVals v0 vs0 = do
+  let vs = v0 : vs0
+  rval <- foldM templateOfVals v0 vs0
   vs' <- sequence [ unionVals v rval | v <- vs ]
   (, ) <$> transformBiM instantiateWithFreshRegs rval <*> pure (fmap (transformBi instantiateWithUndef) vs')
-  where
-    pos = case vs of
-      v : _ -> positionOf v
-      _ -> noPosition
 
 evalBlockM :: M Val -> M Block
 evalBlockM m = do
@@ -177,7 +171,6 @@ evalBlockM m = do
   pure $ Block
     { blockDecls = reverse ss
     , blockResult = val
-    , blockTailCalls = mempty
     }
 
 evalCon :: UIdent -> M VScalar
@@ -243,23 +236,12 @@ data Func = Func{ retTy :: Ty, arg :: Val, body :: Block }
 instance Pretty Func where
   pretty x = "func" <+> pretty (arg x) <+> "->" <+> pretty (retTy x) <+> "=" <+> pretty (body x)
 
-data TailCallId = TailCallId{ tailCallId :: Integer, tailCallName :: LIdent }
-  deriving (Show, Data)
-
-instance Ord TailCallId where
-  compare x y = tailCallId x `compare` tailCallId y
-
-instance Eq TailCallId where
-  x == y = tailCallId x == tailCallId y
-
 data St = St
   { nextTagId :: TagId
   , tags :: Map UIdent TagId
   , nextRegisterId :: RegisterId
   , decls :: [VDecl]
-  , tailcalls :: [(TailCallId, Val)]
   , calls :: Map Text (Val -> M Val)
-  , nextTailCallId :: Integer
   , isSlowSafeBuild :: Bool
   , buildCmd :: [Text]
   , isPure :: Bool
@@ -272,9 +254,7 @@ initSt b = St
   , tags = mempty
   , nextRegisterId = 0
   , decls = mempty
-  , tailcalls = mempty
   , calls = mempty
-  , nextTailCallId = 0
   , isSlowSafeBuild = b
   , buildCmd = mempty
   , isPure = False
@@ -285,10 +265,8 @@ data Val
   -- these should be eliminated during evalType
   = XVLam Position Env Binding Exp -- at the end of eval all lambdas have been eliminated
   | XVDelay Position Env Exp -- think of this as a rewrite from v to \() -> v so it won't evaluate immediately and can be used repeatedly (i.e. to repeat side-effecting calls)
-  | XVTailRecDecls Position Env (Map LIdent TailRecDecl) LIdent
-  | XVTailCall Position TailCallId
   | XVCall Position Text
-  | XVNone Position -- for tail calls
+  | XVLoop Position
   -- at then end, only these remain
   | VType Position Ty
   -- constructed values
@@ -306,10 +284,8 @@ instance Positioned Val where
   positionOf x = case x of
     XVLam pos _ _ _ -> pos
     XVDelay pos _ _ -> pos
-    XVTailRecDecls pos _ _ _ -> pos
-    XVTailCall pos _ -> pos
     XVCall pos _ -> pos
-    XVNone pos -> pos
+    XVLoop pos -> pos
     VType pos _ -> pos
     VArray pos _ _ -> pos
     VRecord pos _ -> pos
@@ -319,11 +295,6 @@ instance Positioned Val where
     VPtr pos _ _ -> pos
     VUnit pos -> pos
     VScalar pos _ -> pos
-
-isNone :: Val -> Bool
-isNone x = case x of
-  XVNone{} -> True
-  _ -> False
 
 data VScalar
   = XVFreshRegVal Position Ty
@@ -398,49 +369,38 @@ data VStmt
   = VCall Text Val
   | VSwitch Val Block [Alt]
   | VIf Val Block Block
-  | VCallTailCall TailCallId Val
+  | VLoop Val Val Val Block
   deriving (Show, Data)
 
 data VDecl
   = VLet Val VStmt
-  | VTailRecDecls TailCallId (Map TailCallId (Val, Block))
-  | VTailCall TailCallId Val
   deriving (Show, Data)
 
 data Block = Block
   { blockDecls :: [VDecl]
-  , blockTailCalls :: [(TailCallId, Val)]
   , blockResult :: Val
   } deriving (Show, Data)
 
-data Alt -- BAL: remove?
+data Alt
   = AltScalar VScalar Block
-  | AltDefault Block
   deriving (Show, Data)
 
 instance Pretty Alt where
   pretty x = case x of
     AltScalar a b -> "alt" <+> pretty a <+> "->" <+> pretty b
-    AltDefault b -> "alt-default" <+> "->" <+> pretty b
 
 instance Pretty VDecl where
   pretty x = case x of
-    VTailRecDecls _ m -> "tailrec" <+> vlist ""
-      [ pretty a <+> "= \\" <+> pretty b <+> "->" <+> pretty c | (a, (b, c)) <- Map.toList m ]
     VLet a b -> case a of
       VUnit _ -> pretty b
       _ -> pretty a <+> "=" <+> pretty b
-    VTailCall a b -> "tailcall" <+> pretty a <+> pretty b
-
-instance Pretty TailCallId where
-  pretty x = pretty (tailCallName x) <> "." <> pretty (tailCallId x)
 
 instance Pretty VStmt where
   pretty x = case x of
     VIf a b c -> "if" <+> nest 2 (vcat [ pretty a, "then" <+> pretty b, "else" <+> pretty c ])
     VCall a b -> "call" <+> pretty a <+> pretty b
-    VCallTailCall a b -> "call" <+> pretty a <+> pretty b
-    VSwitch a b alts -> "switch" <+> pretty a <+> vlist "of" (fmap pretty (alts ++ [AltDefault b]))
+    VSwitch a b alts -> "switch" <+> pretty a <+> vlist "of" (fmap pretty alts ++ ["default ->" <+> pretty b])
+    VLoop a b c blk -> "loop" <+> pretty a <+> pretty b <+> pretty c <> pretty blk
 
 instance Pretty Block where
   pretty x = vlist "do" $ fmap pretty (blockDecls x) ++ [pretty (blockResult x)]
@@ -467,9 +427,7 @@ instance Pretty Val where
   pretty x = case x of
     XVLam{} -> "<lambda>"
     XVDelay{} -> "<delay>"
-    XVTailRecDecls _ _ m n -> "<tailrecdecls ="<+> pretty n <+> pretty m <> ">"
-    XVTailCall{} -> "<tailcall>"
-    XVNone{} -> "<no value>"
+    XVLoop{} -> "<loop>"
     XVCall _ v -> "<call" <+> pretty v <> ">"
     VRecord _ m -> "record" <+> pretty m
     VSum _ con m -> vlist "sum" [ "Tag:" <+> pretty con, "UNION:" <+> pretty m ]
@@ -507,7 +465,7 @@ instance Typed Val where
     VPtr _ t _ -> t
     VIndexed _ t _ _ -> t
     VScalar _ a -> typeOf a
-    _ -> unreachable "unable to take type of value" x
+    _ -> XTyErr $ positionOf x
 
 intSz :: VInt -> SzInt
 intSz i = case i of
@@ -558,37 +516,6 @@ scalarToVScalar x = case x of
 isRegisterVal :: Val -> Bool
 isRegisterVal = isRegisterTy . typeOf
 
-flattenVTuple :: Val -> [Val]
-flattenVTuple x = case x of
-  VTuple _ vs -> toList vs
-  _ -> [x]
-
-flattenVal :: Val -> Maybe Val
-flattenVal x = case x of
-  VRecord _ m -> f $ fmap snd $ sortByFst $ Map.toList m
-  VSum _ k m -> f (k : fmap snd (sortByFst [ (con, v) | (con, Just v) <- Map.toList m ]))
-  VArray _ _ vs -> f $ toList vs
-  VTuple _ vs | all isFlatVal vs -> Nothing
-  VTuple _ vs -> f $ concatMap flattenVTuple vs
-  VPtr _ _ a -> Just a
-  VIndexed _ _ _ a -> Just a
-  _ | isFlatVal x -> Nothing
-  _ -> unreachable "unable to flatten value" x
-  where
-    f = Just . mkVTuple
-    isFlatVal v = case v of
-      VType{} -> True
-      VUnit{} -> True
-      VScalar{} -> True
-      XVNone{} -> True
-      _ -> False
-
-mkVTuple :: [Val] -> Val
-mkVTuple xs = case xs of
-  [] -> unreachable "empty tuple" ()
-  [x] -> x
-  x : y : rest -> VTuple (positionOf x) (cons2 x (y :| rest))
-
 isSwitchVal :: Val -> Bool
 isSwitchVal = isSwitchTy . typeOf
 
@@ -614,7 +541,7 @@ switch :: Val -> [(VScalar, Block)] -> Block -> M Val
 switch val alts dflt = do
   tg <- switchValOf val
 
-  (r, rdflt : ralts) <- joinVals $ blockResult dflt : fmap (blockResult . snd) alts
+  (r, rdflt : ralts) <- joinVals (blockResult dflt) $ fmap (blockResult . snd) alts
   pushDecl $ VLet r $ VSwitch tg (dflt{ blockResult = rdflt }) [ AltScalar a b{ blockResult = rb } | (rb, (a, b)) <- zip ralts alts ]
   pure r
 

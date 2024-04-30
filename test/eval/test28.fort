@@ -1,17 +1,16 @@
-tailrec
-  loop = \x -> do
+foo = \x -> do
     (i, ()) = x
     case i of
-      0 -> println ""
+      0 -> Done $ println ""
       i -> do
         print i
  	print ' '
-	loop (i - 1, ())
+	Continue (i - 1, ())
 
 qualifier Prelude = "lib/prelude.fort"
 
 main = do
   (unused, ()) = (3, ())
   (v, ()) = (3, ())
-  loop (v, ())
+  loop (v, ()) foo
 

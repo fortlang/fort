@@ -1,0 +1,8 @@
+main = do
+  loop 0 $ \i -> case i of
+    0 -> Done ()
+    1 -> Foo
+    2 -> Bar
+    _ -> Continue 2
+
+qualifier Prelude = "lib/prelude.fort"

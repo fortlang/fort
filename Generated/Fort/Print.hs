@@ -223,11 +223,6 @@ instance Print [Fort.Abs.LayoutElemTSum' a] where
   prt _ [x] = concatD [prt 0 x]
   prt _ (x:xs) = concatD [prt 0 x, doc (showString ";"), prt 0 xs]
 
-instance Print [Fort.Abs.LayoutElemTailRecDecl' a] where
-  prt _ [] = concatD []
-  prt _ [x] = concatD [prt 0 x]
-  prt _ (x:xs) = concatD [prt 0 x, doc (showString ";"), prt 0 xs]
-
 instance Print [Fort.Abs.Size' a] where
   prt _ [] = concatD []
   prt _ [x] = concatD [prt 0 x]
@@ -297,10 +292,6 @@ instance Print (Fort.Abs.LayoutElemFieldDecl' a) where
   prt i = \case
     Fort.Abs.LayoutElemFieldDecl _ fielddecl -> prPrec i 0 (concatD [prt 0 fielddecl])
 
-instance Print (Fort.Abs.LayoutElemTailRecDecl' a) where
-  prt i = \case
-    Fort.Abs.LayoutElemTailRecDecl _ tailrecdecl -> prPrec i 0 (concatD [prt 0 tailrecdecl])
-
 instance Print (Fort.Abs.LayoutElemExpDecl' a) where
   prt i = \case
     Fort.Abs.LayoutElemExpDecl _ expdecl -> prPrec i 0 (concatD [prt 0 expdecl])
@@ -367,7 +358,6 @@ instance Print (Fort.Abs.Exp' a) where
 instance Print (Fort.Abs.ExpDecl' a) where
   prt i = \case
     Fort.Abs.Binding _ binding exp -> prPrec i 0 (concatD [prt 0 binding, doc (showString "="), prt 0 exp])
-    Fort.Abs.TailRec _ tailrecdecls -> prPrec i 0 (concatD [prt 0 tailrecdecls])
 
 instance Print (Fort.Abs.FieldDecl' a) where
   prt i = \case
@@ -430,7 +420,6 @@ instance Print (Fort.Abs.Size' a) where
 instance Print (Fort.Abs.Stmt' a) where
   prt i = \case
     Fort.Abs.Stmt _ exp -> prPrec i 0 (concatD [prt 0 exp])
-    Fort.Abs.TailRecLet _ tailrecdecls -> prPrec i 0 (concatD [prt 0 tailrecdecls])
     Fort.Abs.XLet _ exp1 exp2 -> prPrec i 0 (concatD [prt 0 exp1, doc (showString "="), prt 0 exp2])
 
 instance Print (Fort.Abs.TField' a) where
@@ -441,14 +430,6 @@ instance Print (Fort.Abs.TSum' a) where
   prt i = \case
     Fort.Abs.TCon _ uident type_ -> prPrec i 0 (concatD [prt 0 uident, doc (showString ":"), prt 0 type_])
     Fort.Abs.TEnum _ uident -> prPrec i 0 (concatD [prt 0 uident])
-
-instance Print (Fort.Abs.TailRecDecl' a) where
-  prt i = \case
-    Fort.Abs.TailRecDecl _ lident1 lident2 exp -> prPrec i 0 (concatD [prt 0 lident1, doc (showString "="), doc (showString "\\"), prt 0 lident2, doc (showString "->"), prt 2 exp])
-
-instance Print (Fort.Abs.TailRecDecls' a) where
-  prt i = \case
-    Fort.Abs.TailRecDecls _ layoutelemtailrecdecls -> prPrec i 0 (concatD [doc (showString "tailrec"), doc (showString "{"), prt 0 layoutelemtailrecdecls, doc (showString "}")])
 
 instance Print (Fort.Abs.Type' a) where
   prt i = \case

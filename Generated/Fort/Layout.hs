@@ -29,34 +29,31 @@ data LayoutDelimiters
 layoutWords :: [(TokSymbol, LayoutDelimiters)]
 layoutWords =
   [ ( TokSymbol "Record" 19
-    , LayoutDelimiters (TokSymbol ";" 8) (Just (TokSymbol "{" 46)) (Just (TokSymbol "}" 47))
+    , LayoutDelimiters (TokSymbol ";" 8) (Just (TokSymbol "{" 45)) (Just (TokSymbol "}" 46))
     )
   , ( TokSymbol "Sum" 21
-    , LayoutDelimiters (TokSymbol ";" 8) (Just (TokSymbol "{" 46)) (Just (TokSymbol "}" 47))
+    , LayoutDelimiters (TokSymbol ";" 8) (Just (TokSymbol "{" 45)) (Just (TokSymbol "}" 46))
     )
   , ( TokSymbol "array" 29
-    , LayoutDelimiters (TokSymbol ";" 8) (Just (TokSymbol "{" 46)) (Just (TokSymbol "}" 47))
+    , LayoutDelimiters (TokSymbol ";" 8) (Just (TokSymbol "{" 45)) (Just (TokSymbol "}" 46))
     )
   , ( TokSymbol "do" 31
-    , LayoutDelimiters (TokSymbol ";" 8) (Just (TokSymbol "{" 46)) (Just (TokSymbol "}" 47))
+    , LayoutDelimiters (TokSymbol ";" 8) (Just (TokSymbol "{" 45)) (Just (TokSymbol "}" 46))
     )
   , ( TokSymbol "if" 34
-    , LayoutDelimiters (TokSymbol ";" 8) (Just (TokSymbol "{" 46)) (Just (TokSymbol "}" 47))
+    , LayoutDelimiters (TokSymbol ";" 8) (Just (TokSymbol "{" 45)) (Just (TokSymbol "}" 46))
     )
   , ( TokSymbol "of" 38
-    , LayoutDelimiters (TokSymbol ";" 8) (Just (TokSymbol "{" 46)) (Just (TokSymbol "}" 47))
+    , LayoutDelimiters (TokSymbol ";" 8) (Just (TokSymbol "{" 45)) (Just (TokSymbol "}" 46))
     )
   , ( TokSymbol "record" 41
-    , LayoutDelimiters (TokSymbol ";" 8) (Just (TokSymbol "{" 46)) (Just (TokSymbol "}" 47))
+    , LayoutDelimiters (TokSymbol ";" 8) (Just (TokSymbol "{" 45)) (Just (TokSymbol "}" 46))
     )
-  , ( TokSymbol "tailrec" 42
-    , LayoutDelimiters (TokSymbol ";" 8) (Just (TokSymbol "{" 46)) (Just (TokSymbol "}" 47))
+  , ( TokSymbol "where" 43
+    , LayoutDelimiters (TokSymbol ";" 8) (Just (TokSymbol "{" 45)) (Just (TokSymbol "}" 46))
     )
-  , ( TokSymbol "where" 44
-    , LayoutDelimiters (TokSymbol ";" 8) (Just (TokSymbol "{" 46)) (Just (TokSymbol "}" 47))
-    )
-  , ( TokSymbol "with" 45
-    , LayoutDelimiters (TokSymbol ";" 8) (Just (TokSymbol "{" 46)) (Just (TokSymbol "}" 47))
+  , ( TokSymbol "with" 44
+    , LayoutDelimiters (TokSymbol ";" 8) (Just (TokSymbol "{" 45)) (Just (TokSymbol "}" 46))
     )
   ]
 

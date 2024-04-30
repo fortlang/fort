@@ -1,0 +1,5 @@
+main = do
+  print $ typeof-element 3
+
+qualifier Prelude = "lib/prelude.fort"
+

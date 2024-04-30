@@ -1,0 +1,5 @@
+main = do
+  loop 3 4
+
+qualifier Prelude = "lib/prelude.fort"
+

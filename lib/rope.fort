@@ -11,7 +11,12 @@ type Node = Sum
     left-nid: NodeId
     right-nid: NodeId
 
-empty = Leaf $ record
+cast' = flip cast
+
+mknode = \x -> cast' `Node` $ Node x
+mkleaf = \x -> cast' `Node` $ Leaf x
+
+empty = mkleaf $ record
   offset = 0
   length = 0
 
@@ -72,14 +77,14 @@ join = \l r rp -> if
   otherwise -> do
     (i, rp) = push l rp
     (j, rp) = push r rp
-    flip pair rp $ Node $ record
+    flip pair rp $ mknode $ record
       weight = length l rp
       left-nid = i
       right-nid = j
 
 done = \rp -> do
   (piece, pb) = PB.done rp.pieces
-  pair (Leaf piece) $ rp with pieces = pb
+  pair (mkleaf piece) $ rp with pieces = pb
 
 append = \x rp -> rp with
   pieces = PB.append x rp.pieces
@@ -93,7 +98,7 @@ split = \n root rp -> do
   (l, r, ops) = loop (n, root, rp.temp-stack) $ \(n, root, ops) -> case root of
     Leaf lf -> do
       len = clamp 0 n lf.length
-      Done (Leaf $ lf with { length = len }, Leaf { offset = lf.offset + len, length = lf.length - len}, ops)
+      Done (mkleaf $ lf with { length = len }, mkleaf { offset = lf.offset + len, length = lf.length - len}, ops)
     Node nd -> if
       n <= 0 -> Done (empty, root, ops)
       n == nd.weight -> Done (load nd.left-nid rp, load nd.right-nid rp, ops)

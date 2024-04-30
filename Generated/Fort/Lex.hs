@@ -523,33 +523,31 @@ eitherResIdent tv s = treeFind resWords
 -- | The keywords and symbols of the language organized as binary search tree.
 resWords :: BTree
 resWords =
-  b "[" 25
-    (b "C" 13
-       (b ":" 7
-          (b "," 4
-             (b "()" 2 (b "(" 1 N N) (b ")" 3 N N)) (b "." 6 (b "->" 5 N N) N))
-          (b "=>" 10
-             (b "=" 9 (b ";" 8 N N) N) (b "Bool" 12 (b "Array" 11 N N) N)))
-       (b "Record" 19
-          (b "I" 16
-             (b "False" 15 (b "F" 14 N N) N)
-             (b "Pointer" 18 (b "Opaque" 17 N N) N))
-          (b "True" 22
-             (b "Sum" 21 (b "String" 20 N N) N)
-             (b "Vector" 24 (b "U" 23 N N) N))))
-    (b "infixr" 37
-       (b "do" 31
-          (b "`" 28
-             (b "]" 27 (b "\\" 26 N N) N) (b "case" 30 (b "array" 29 N N) N))
-          (b "if" 34
-             (b "extern" 33 (b "export" 32 N N) N)
-             (b "infixl" 36 (b "infix" 35 N N) N)))
-       (b "type" 43
-          (b "qualifier" 40
-             (b "operator" 39 (b "of" 38 N N) N)
-             (b "tailrec" 42 (b "record" 41 N N) N))
-          (b "{" 46
-             (b "with" 45 (b "where" 44 N N) N) (b "~" 48 (b "}" 47 N N) N))))
+  b "Vector" 24
+    (b "Bool" 12
+       (b "." 6
+          (b ")" 3 (b "()" 2 (b "(" 1 N N) N) (b "->" 5 (b "," 4 N N) N))
+          (b "=" 9
+             (b ";" 8 (b ":" 7 N N) N) (b "Array" 11 (b "=>" 10 N N) N)))
+       (b "Pointer" 18
+          (b "False" 15
+             (b "F" 14 (b "C" 13 N N) N) (b "Opaque" 17 (b "I" 16 N N) N))
+          (b "Sum" 21
+             (b "String" 20 (b "Record" 19 N N) N)
+             (b "U" 23 (b "True" 22 N N) N))))
+    (b "infixl" 36
+       (b "case" 30
+          (b "]" 27
+             (b "\\" 26 (b "[" 25 N N) N) (b "array" 29 (b "`" 28 N N) N))
+          (b "extern" 33
+             (b "export" 32 (b "do" 31 N N) N)
+             (b "infix" 35 (b "if" 34 N N) N)))
+       (b "type" 42
+          (b "operator" 39
+             (b "of" 38 (b "infixr" 37 N N) N)
+             (b "record" 41 (b "qualifier" 40 N N) N))
+          (b "{" 45
+             (b "with" 44 (b "where" 43 N N) N) (b "~" 47 (b "}" 46 N N) N))))
   where
   b s n = B bs (TS bs n)
     where

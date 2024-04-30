@@ -20,7 +20,7 @@ name:               fort
 -- PVP summary:     +-+------- breaking API changes
 --                  | | +----- non-breaking API additions
 --                  | | | +--- code changes with no API change
-version:            0.1.4.0
+version:            0.1.5.0
 
 -- URL for the project homepage or repository.
 homepage:           https://github.com/fortlang/fort
@@ -56,7 +56,9 @@ extra-doc-files:    CHANGELOG.md
 extra-source-files: cbits/builtins.h cbits/builtins.c
 
 common warnings
-    ghc-options: -Weverything -fno-warn-missing-import-lists -fno-warn-all-missed-specialisations -fno-warn-unsafe -fno-warn-missing-safe-haskell-mode -fno-warn-missing-kind-signatures -fno-warn-prepositive-qualified-module -fno-warn-missing-local-signatures -fno-warn-missing-deriving-strategies -fno-warn-missed-specializations -fno-warn-orphans -fno-warn-deriving-typeable -fno-warn-operator-whitespace -fno-warn-missing-export-lists -fno-warn-missing-export-lists -fno-warn-deriving-typeable -fno-warn-operator-whitespace -fno-warn-missing-role-annotations -optP-Wno-nonportable-include-path
+    ghc-options: -Weverything -fno-warn-missing-import-lists -fno-warn-all-missed-specialisations -fno-warn-unsafe -fno-warn-missing-safe-haskell-mode -fno-warn-missing-kind-signatures -fno-warn-prepositive-qualified-module -fno-warn-missing-local-signatures -fno-warn-missing-deriving-strategies -fno-warn-missed-specializations -fno-warn-orphans -fno-warn-deriving-typeable -fno-warn-operator-whitespace -fno-warn-missing-export-lists -fno-warn-missing-export-lists -fno-warn-deriving-typeable -fno-warn-operator-whitespace -optP-Wno-nonportable-include-path
+    -- in a new version of ghc:
+    -- -fno-warn-missing-role-annotations 
     -- ignoring the following warnings because of bnfc:
     -- -fno-warn-deriving-typeable
     -- -fno-warn-missing-export-lists 

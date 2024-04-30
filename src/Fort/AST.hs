@@ -10,11 +10,10 @@ where
 import qualified Fort.FunctorAST as F
 import Fort.Errors
 
-import Fort.FunctorAST hiding (Exp, InfixOp, PrefixOp, LIdent, UIdent, Module, Binding, Decl, ExpDecl, Pat, TailRecDecl, Fixity, Stmt, AltPat, QualLIdent, InfixInfo, FieldDecl, CaseAlt, Type, Scalar, TField, TSum, TailRecDecls, TailRecDecl)
+import Fort.FunctorAST hiding (Exp, InfixOp, PrefixOp, LIdent, UIdent, Module, Binding, Decl, ExpDecl, Pat, Fixity, Stmt, AltPat, QualLIdent, InfixInfo, FieldDecl, CaseAlt, Type, Scalar, TField, TSum)
 
-import Fort.FunctorAST (pattern Binding, pattern Module, pattern LIdent, pattern ExpDecl, pattern InfixOp, pattern UIdent, pattern PrefixOp, pattern TailRecDecl, pattern Stmt, pattern InfixInfo, pattern FieldDecl, pattern CaseAlt, pattern Scalar, pattern TField, pattern TSum, pattern TailRecDecls)
+import Fort.FunctorAST (pattern Binding, pattern Module, pattern LIdent, pattern ExpDecl, pattern InfixOp, pattern UIdent, pattern PrefixOp, pattern Stmt, pattern InfixInfo, pattern FieldDecl, pattern CaseAlt, pattern Scalar, pattern TField, pattern TSum)
 
-type TailRecDecls = F.TailRecDecls Position
 type Type = F.Type Position
 type Scalar = F.Scalar Position
 type Exp = F.Exp Position
@@ -33,7 +32,6 @@ type Binding = F.Binding Position
 type Module = F.Module Position
 type Decl = F.Decl Position
 type ExpDecl = F.ExpDecl Position
-type TailRecDecl = F.TailRecDecl Position
 type Pat = F.Pat Position
 type AltPat = F.AltPat Position
 type Fixity = F.Fixity Position

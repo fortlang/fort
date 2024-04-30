@@ -168,7 +168,6 @@ type Token = Sum
   Operator
   Qualifier
   VRecord
-  TailRec
   Type
   Where
   With
@@ -213,7 +212,6 @@ lident-keywords = keyword-table
   , ("operator", Operator)
   , ("qualifier", Qualifier)
   , ("record", VRecord)
-  , ("tailrec", TailRec)
   , ("type", Type)
   , ("where", Where)
   , ("with", With)

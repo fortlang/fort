@@ -42,7 +42,6 @@ instance FreeVars Decl where
 instance FreeVars ExpDecl where
   freeVars x = case x of
     Binding _ v e -> freeVars e `difference` bindings v
-    TailRec _ d -> freeVars d
 
 instance FreeVars FieldDecl where
   freeVars (FieldDecl _ _ e) = freeVars e
@@ -54,7 +53,6 @@ freeVarsStmts :: NonEmpty Stmt -> [Name]
 freeVarsStmts (b :| bs) = case b of
   Stmt _ e -> freeVars e `union` fvs
   Let _ p e -> freeVars e `union` (fvs `difference` bindings p)
-  TailRecLet _ d -> freeVars d `union` (fvs `difference` bindings d)
   where
     fvs = case bs of
       [] -> mempty
@@ -90,10 +88,4 @@ instance FreeVars Exp where
     Con{} -> mempty
     Unit{} -> mempty
     Scalar{} -> mempty
-
-instance FreeVars TailRecDecl where
-  freeVars (TailRecDecl _ a b e) = freeVars e `difference` (bindings a ++ bindings b)
-
-instance FreeVars TailRecDecls where
-  freeVars x@(TailRecDecls _ ds) = neunions (fmap freeVars ds) `difference` bindings x
 

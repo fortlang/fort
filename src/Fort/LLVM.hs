@@ -4,7 +4,7 @@ module Fort.LLVM (llvmModules, BuildType(..))
 
 where
 
-import Fort.FIL (Register(..), RegisterId(..), Scalar(..), Val(..), Ty(..), TailCallId(..))
+import Fort.FIL (Register(..), RegisterId(..), Scalar(..), Val(..), Ty(..))
 import Fort.Utils hiding (Stmt, Extern, UInt, Scalar, Unit)
 import Numeric
 import Fort.Type (SzFloat(..), SzUInt(..))
@@ -17,8 +17,6 @@ data St = St
   { currentBlockId :: BlockId
   , nextBlockId :: BlockId
   , blocks :: Map BlockId Block
-  , tailCallBlockIds :: Map TailCallId BlockId
-  , tailCallFILBlocks :: Map TailCallId (Map TailCallId FIL.Block)
   } deriving Show
 
 initBlock :: Block
@@ -92,7 +90,6 @@ llvmFuncBlocks :: FIL.Func -> M (Map BlockId Block)
 llvmFuncBlocks x = do
   put initSt
   bid <- freshBlockId
-  sequence_ [ freshTailRecDecls a m | FIL.TailRecDecls a m <- universeBi x ]
   llvmBlock bid bid $ FIL.body x
   blks <- Map.filter (not . isEmptyBlock) <$> gets blocks
   pure $ fmap (\blk -> blk{ blockStmts = reverse (blockStmts blk) }) blks
@@ -159,35 +156,6 @@ freshBlockId = do
   modify' $ \st -> st{ nextBlockId = i + 1, blocks = Map.insert i initBlock $ blocks st }
   pure i
 
-freshTailRecDecl :: (TailCallId, ([Val], FIL.Block)) -> M BlockId
-freshTailRecDecl (nm, (vs, _)) = do
-  bid <- freshBlockId
-  initPhis bid vs
-  modify' $ \st -> st{ tailCallBlockIds = Map.insert nm bid $ tailCallBlockIds st }
-  pure bid
-
-freshTailRecDecls :: TailCallId -> Map TailCallId ([Val], FIL.Block) -> M ()
-freshTailRecDecls k m = do
-  mapM_ freshTailRecDecl $ Map.toList m
-  modify' $ \st -> st{ tailCallFILBlocks = Map.insert k (fmap snd m) $ tailCallFILBlocks st }
-
-llvmTailCallBlock :: BlockId -> (TailCallId, FIL.Block) -> M ()
-llvmTailCallBlock retto (nm, blk) = do
-  tailcall <- getTailCallBlockId nm
-  setCurrentBlock tailcall
-  llvmDecls $ FIL.blockDecls blk
-  case FIL.blockResult blk of
-    FIL.Exit v -> pushTerminator $ Ret v
-    FIL.Cont rs -> unless (null rs) $ do
-      pushPhis retto rs
-      pushTerminator $ Br retto
-
-llvmTailCallBlocks :: BlockId -> TailCallId -> M ()
-llvmTailCallBlocks retto nm = do
-  tbl <- gets tailCallFILBlocks
-  let m = lookup_ nm tbl
-  mapM_ (llvmTailCallBlock retto) $ Map.toList m
-
 llvmDecls :: [FIL.Decl] -> M ()
 llvmDecls = mapM_ llvmDecl
 
@@ -223,20 +191,27 @@ llvmDecl x = case x of
       sequence_ [ llvmBlock targ bid blk | (Alt _ bid, FIL.Alt _ blk) <- zip alts cs ]
       setCurrentBlock targ
 
-    FIL.CallTailCall nm vs -> do
-      llvmDecl $ FIL.TailCall nm vs
+    FIL.Loop v i k blk -> do
+      loop <- freshBlockId
 
-      retto <- freshBlockId
-      initPhis retto rs
-      llvmTailCallBlocks retto nm
-      setCurrentBlock retto
+      initPhis loop v
+      pushPhis loop i
 
-  FIL.TailCall nm vs -> do
-      tailcall <- getTailCallBlockId nm
-      pushPhis tailcall vs
-      pushTerminator $ Br tailcall
+      pushTerminator $ Br loop
 
-  FIL.TailRecDecls{} -> pure ()
+      setCurrentBlock loop
+      llvmDecls $ FIL.blockDecls blk
+
+      done <- freshBlockId
+      initPhis done rs
+
+      case FIL.blockResult blk of
+        FIL.Cont j -> do
+          pushPhis loop j
+          pushTerminator $ IfBr k loop done
+        FIL.Exit a -> pushTerminator $ Ret a
+
+      setCurrentBlock done
 
 llvmPhi :: (Val, [(Val, BlockId)]) -> Doc ann
 llvmPhi (r, xs) = if
@@ -249,10 +224,11 @@ pushPhis :: BlockId -> [Val] -> M ()
 pushPhis targ vs = do
   blkPhis <- blockPhis <$> getBlock targ
   let rslts = fmap fst blkPhis
+  let n = length blkPhis
+  let m = length vs
   case [ a | a <- zip rslts vs, not $ f a ] of
-    _ | length blkPhis /= length vs -> case vs of
-      [] -> err101 "llvm phi length mismatch" (noPos targ) noTCHint
-      v : _ -> err111 "llvm phi length mismatch" v (noPos targ) noTCHint
+    _ | n < m -> err1n1 "extra arguments to block" (noPos (n, m)) (drop n vs) noTCHint
+    _ | m < n -> err1n1 "missing arguments to block" (noPos (n, m)) (drop m $ map fst blkPhis) noTCHint
     [] -> do
       bid <- gets currentBlockId
       modifyBlock targ $ \blk -> blk
@@ -274,9 +250,6 @@ modifyBlock bid f = do
 
 modifyCurrentBlock :: (Block -> Block) -> M ()
 modifyCurrentBlock f = gets currentBlockId >>= flip modifyBlock f
-
-getTailCallBlockId :: TailCallId -> M BlockId
-getTailCallBlockId x = lookup_ x <$> gets tailCallBlockIds
 
 instance LLVM BlockId where
   llvm x = "%" <> llvmBlockId x
@@ -336,8 +309,6 @@ initSt = St
   { currentBlockId = 0
   , nextBlockId = 0
   , blocks = mempty
-  , tailCallBlockIds = mempty
-  , tailCallFILBlocks = mempty
   }
 
 type M a = StateT St IO a

@@ -2,17 +2,15 @@ qualifier Prelude = "lib/prelude.fort"
 
 myloop = \i0 -> do
   c = 42
-  tailrec
-    go = \i -> if
+  loop i0 $ \i -> if
      i > 3 -> do
        print '\n'
        exit 0
-       print "blah, blah"
-     i > 5 -> ()
+       Done $ print "blah, blah"
+     i > 5 -> Done ()
      otherwise -> do
        print c
-       go (i + 1)
-  go i0
+       Continue (i + 1)
 
 main = do
   myloop 0

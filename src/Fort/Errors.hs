@@ -17,8 +17,10 @@ module Fort.Errors
 , err10n
 , err1n0
 , err1n1
+, err1nn
 , errnn1
 , errn00
+, errn0n
 , errn01
 , noPosition
 , outputErrorReport
@@ -140,6 +142,9 @@ err101 msg b d = throwUE msg [ (pretty b, positionOf b) ] [] [pretty d]
 errn01 :: (MonadIO m, Pretty b, Positioned b, Pretty d) => Doc () -> [b] -> d -> m a
 errn01 msg bs d = throwUE msg [ (pretty b, positionOf b) | b <- bs ] [] [pretty d]
 
+errn0n :: (MonadIO m, Pretty b, Positioned b, Pretty d) => Doc () -> [b] -> [d] -> m a
+errn0n msg bs ds = throwUE msg [ (pretty b, positionOf b) | b <- bs ] [] $ fmap pretty ds
+
 errnn1 :: (MonadIO m, Pretty b, Positioned b, Pretty c, Positioned c, Pretty d) => Doc () -> [b] -> [c] -> d -> m a
 errnn1 msg bs cs d = throwUE msg [ (pretty b, positionOf b) | b <- bs ] [ (pretty c, positionOf c) | c <- cs ] [pretty d]
 
@@ -158,6 +163,10 @@ err1n0 msg b cs = throwUE msg [ (pretty b, positionOf b) ] [ (pretty c, position
 err1n1 :: (MonadIO m, Pretty b, Positioned b, Pretty c, Positioned c, Pretty d) => Doc () -> b -> [c] -> d -> m a
 err1n1 msg b cs d = throwUE msg [ (pretty b, positionOf b) ] [ (pretty c, positionOf c) | c <- cs ] [pretty d]
 
+err1nn :: (MonadIO m, Pretty b, Positioned b, Pretty c, Positioned c, Pretty d) => Doc () -> b -> [c] -> [d] -> m a
+err1nn msg b cs ds = throwUE msg [ (pretty b, positionOf b) ] [ (pretty c, positionOf c) | c <- cs ] $ fmap pretty ds
+
+
 errn00 :: (MonadIO m, Pretty b, Positioned b) => Doc () -> [b] -> m a
 errn00 msg bs = throwUE msg [ (pretty b, positionOf b) | b <- bs ] [] []
 
@@ -171,13 +180,13 @@ outputSystemError x = do
   pure 1
 
 outputErrorReport :: Bool -> UserException -> IO Int
-outputErrorReport _ (UserException _ [] _ _) = error "unexpected user exception with empty messages"
+outputErrorReport _ (UserException _ [] _ _) = unreachable "unexpected user exception with empty messages" ()
 outputErrorReport basicOutput (UserException hdr bs cs ds) = do
   let fns = List.nub [ fn | (_, (Position (Just fn) _)) <- bs ++ cs ]
   let addFile d fn = Diagnose.addFile d fn <$> readFile fn
   dfile :: Diagnose.Diagnostic String <- foldM addFile Diagnose.def fns
 
-  drpt <- foldM addReport dfile [ (hdr, b, cs, ds) | b <- bs ]
+  drpt <- foldM addReport dfile $ reverse [ (hdr, b, cs, ds) | b <- bs ]
 
   if basicOutput
     then Diagnose.printDiagnostic stderr False False 2 Diagnose.defaultStyle drpt
@@ -214,5 +223,5 @@ getLineAt :: FilePath -> Int -> IO String
 getLineAt fn j = do
   s <- readFile fn
   case drop (j - 1) $ lines s of
-    [] -> error "dropped too many lines"
+    [] -> unreachable "dropped too many lines" (j - 1, lines s)
     ln : _ -> pure ln

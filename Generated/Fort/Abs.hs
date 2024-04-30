@@ -67,11 +67,6 @@ type LayoutElemFieldDecl = LayoutElemFieldDecl' BNFC'Position
 data LayoutElemFieldDecl' a = LayoutElemFieldDecl a (FieldDecl' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
-type LayoutElemTailRecDecl = LayoutElemTailRecDecl' BNFC'Position
-data LayoutElemTailRecDecl' a
-    = LayoutElemTailRecDecl a (TailRecDecl' a)
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
-
 type LayoutElemExpDecl = LayoutElemExpDecl' BNFC'Position
 data LayoutElemExpDecl' a = LayoutElemExpDecl a (ExpDecl' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
@@ -138,8 +133,7 @@ data Exp' a
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
 type ExpDecl = ExpDecl' BNFC'Position
-data ExpDecl' a
-    = Binding a (Binding' a) (Exp' a) | TailRec a (TailRecDecls' a)
+data ExpDecl' a = Binding a (Binding' a) (Exp' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
 type FieldDecl = FieldDecl' BNFC'Position
@@ -201,10 +195,7 @@ data Size' a = SzNat a (UInt' a) | SzVar a (LIdent' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
 type Stmt = Stmt' BNFC'Position
-data Stmt' a
-    = Stmt a (Exp' a)
-    | TailRecLet a (TailRecDecls' a)
-    | XLet a (Exp' a) (Exp' a)
+data Stmt' a = Stmt a (Exp' a) | XLet a (Exp' a) (Exp' a)
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
 type TField = TField' BNFC'Position
@@ -213,15 +204,6 @@ data TField' a = TField a (LIdent' a) (Type' a)
 
 type TSum = TSum' BNFC'Position
 data TSum' a = TCon a (UIdent' a) (Type' a) | TEnum a (UIdent' a)
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
-
-type TailRecDecl = TailRecDecl' BNFC'Position
-data TailRecDecl' a
-    = TailRecDecl a (LIdent' a) (LIdent' a) (Exp' a)
-  deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
-
-type TailRecDecls = TailRecDecls' BNFC'Position
-data TailRecDecls' a = TailRecDecls a [LayoutElemTailRecDecl' a]
   deriving (C.Eq, C.Ord, C.Show, C.Read, C.Functor, C.Foldable, C.Traversable, C.Data, C.Typeable, C.Generic)
 
 type Type = Type' BNFC'Position
@@ -355,10 +337,6 @@ instance HasPosition LayoutElemFieldDecl where
   hasPosition = \case
     LayoutElemFieldDecl p _ -> p
 
-instance HasPosition LayoutElemTailRecDecl where
-  hasPosition = \case
-    LayoutElemTailRecDecl p _ -> p
-
 instance HasPosition LayoutElemExpDecl where
   hasPosition = \case
     LayoutElemExpDecl p _ -> p
@@ -425,7 +403,6 @@ instance HasPosition Exp where
 instance HasPosition ExpDecl where
   hasPosition = \case
     Binding p _ _ -> p
-    TailRec p _ -> p
 
 instance HasPosition FieldDecl where
   hasPosition = \case
@@ -488,7 +465,6 @@ instance HasPosition Size where
 instance HasPosition Stmt where
   hasPosition = \case
     Stmt p _ -> p
-    TailRecLet p _ -> p
     XLet p _ _ -> p
 
 instance HasPosition TField where
@@ -499,14 +475,6 @@ instance HasPosition TSum where
   hasPosition = \case
     TCon p _ _ -> p
     TEnum p _ -> p
-
-instance HasPosition TailRecDecl where
-  hasPosition = \case
-    TailRecDecl p _ _ _ -> p
-
-instance HasPosition TailRecDecls where
-  hasPosition = \case
-    TailRecDecls p _ -> p
 
 instance HasPosition Type where
   hasPosition = \case
