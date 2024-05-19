@@ -3,20 +3,18 @@
 
 Fort is a data-oriented general-purpose programming language with a functional style.  The goal is to conveniently build small and fast programs while eliminating the possibility of out-of-memory and stack-overflow errors.
 
-To give you a tast for what Fort code looks like, here's a simple primes example:
+To give you a taste for what Fort code looks like, here's a simple primes example:
 ```haskell
 qualifier Prelude = "lib/prelude.fort"
 
-main = do
-  sv = sieve init-sieve
-  output-sieve sv
+main = output-sieve $ run-sieve init-sieve
 
 init-sieve = record
   count = 0
   next = 2
   primes = alloca `Array 10 Int`
 
-sieve = \sv -> do
+run-sieve = \sv -> do
   loop sv $ \sv -> if
     sv.count == countof sv.primes -> Done sv
     otherwise -> if
