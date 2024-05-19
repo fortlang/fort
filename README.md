@@ -56,9 +56,7 @@ Data structures:
   Function types are provided to enable linking with C libraries.
 
 Control flow:
-  Multiway 'if' expressions provide branching on boolean predicates.  'case' expressions provide branching for numeric data types (similar to a C 'switch') and for deconstructing sum types.
-
-  Iteration is provided via tail recursion (since there is no run-time stack).  The lambda calculus syntax enables the definition of user-defined constructs that are sometimes built in to other languages (e.g. 'for', 'while', etc.).
+  Multiway 'if' expressions provide branching on boolean predicates.  'case' expressions provide branching for numeric data types (similar to a C 'switch') and for deconstructing sum types.  'loop' expressions provide iteration.
 
 Integration with C:
   Fort code can be called from and call out to C code/libraries.  The current backend generates LLVM code with plans for future versions to generate C (as well as other backends).
