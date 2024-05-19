@@ -3,6 +3,41 @@
 
 Fort is a data-oriented general-purpose programming language with a functional style.  The goal is to conveniently build small and fast programs while eliminating the possibility of out-of-memory and stack-overflow errors.
 
+To give you a tast for what Fort code looks like, here's a simple primes example:
+```haskell
+qualifier Prelude = "lib/prelude.fort"
+
+main = do
+  sv = sieve init-sieve
+  output-sieve sv
+
+init-sieve = record
+  count = 0
+  next = 2
+  primes = alloca `Array 10 Int`
+
+sieve = \sv -> do
+  loop sv $ \sv -> if
+    sv.count == countof sv.primes -> Done sv
+    otherwise -> if
+      is-prime sv -> do
+        sv.primes # sv.count := sv.next
+        Continue $ sv with
+          count = sv.count + 1
+	  next = sv.next + 1
+      otherwise -> Continue $ sv with { next = sv.next + 1 }
+
+is-prime = \sv -> do
+  loop 0 $ \i -> if
+    i == sv.count -> Done True
+    sv.next % @(sv.primes # i) == 0 -> Done False
+    otherwise -> Continue (i + 1)
+
+output-sieve = \sv -> do
+  repeat-from 0 sv.count $ \i -> do
+    println @(sv.primes # i)
+```
+
 Semantics:
   Fort code compiles into a finite state machine (FSM).  This FSM consists of registers and arrays where the size of the arrays are known at compile time.  This differs from other run-times in that there is no run-time stack and no garbage collection.  This allows fort code to have a fixed, known at compile time memory footprint and how stack overflow and out of memory errors are avoided.
 
