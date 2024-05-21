@@ -21,5 +21,5 @@ cabal run fort -- lib/ansi.fort --main-is=test --run
 cabal run fort -- examples/lexer.fort --run --main-is=test
 cabal run fort -- examples/colorize.fort
 examples/colorize.fort.ll.exe examples/mandelbrot.fort
-cabal run fort -- examples/simple-sieve.fort
+cabal run fort -- examples/sieve-simple.fort --run
 
