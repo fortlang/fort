@@ -2,7 +2,7 @@ qualifier Prelude = "lib/prelude.fort"
 
 main = do
   println (0xff << 1)
-  println (0xFf >> 1)
+  println (0xF_f >> 1)
   println (255 >> 1)
   println (0xff & 0x1)
   println (0x0 | 0x1)
