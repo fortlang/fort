@@ -361,3 +361,6 @@ is-null = \p -> p == cast 0 (typeof p)
 c-getchar = extern "getchar" `() -> Int`
 ~getchar = cast (c-getchar ()) `Char`
 
+insert-element = curry3 Prim.insert-element
+extract-element = curry2 Prim.extract-element
+

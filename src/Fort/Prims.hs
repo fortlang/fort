@@ -71,6 +71,7 @@ primCallTys = Map.fromList $ fmap f
   , ("Prim.memset", isTriple memsetTC)
   , ("Prim.append-build", appendBuildTC)
   , ("Prim.insert-element", isTriple insertElementTC)
+  , ("Prim.extract-element", isPair extractElementTC)
   , ("Prim.typeof-element", typeofElementTC)
   , ("Prim.select", isTriple selectTC)
   , ("Prim.reduce-min", reduceMinTC)
@@ -88,6 +89,13 @@ selectTC a b c = case (a, b, c) of
   (TyVector _ sza ta, TyVector _ szb tb, TyVector _ szc tc) | sza == szb && szb == szc && ta == tb && tb == tc -> pure b
   -- BAL: ^ break this up to give better errors
   _ -> throwError "unexpected inputs to 'select'"
+
+extractElementTC :: Ty -> Ty -> Err Ty
+extractElementTC a b = case a of
+  TyVector _ _ t -> if
+    | isI32Ty b -> pure t
+    | otherwise -> throwError "expected i32 index"
+  _ -> throwError "expected vector type"
 
 insertElementTC :: Ty -> Ty -> Ty -> Err Ty
 insertElementTC a b c = case a of
@@ -334,6 +342,7 @@ primCalls = Map.fromList $ fmap f
   , ("Prim.memset", \_ -> tripleFun $ memCall "memset")
   , ("Prim.append-build", \_ -> appendBuild)
   , ("Prim.insert-element", \_ -> tripleFun insertElement)
+  , ("Prim.extract-element", \_ -> pairFun extractElement)
   , ("Prim.typeof-element", \_ -> typeofElement)
   , ("Prim.select", \_ -> tripleFun select)
   , ("Prim.reduce-min", \_ -> reduceMin)
@@ -417,6 +426,17 @@ insertElement x y z = do
   where
   pos = positionOf x
   t = typeOf x
+
+extractElement :: Val -> Val -> M Val
+extractElement x y = case t0 of
+  TyVector _ _ t -> do
+    s <- toString (intTySyn t0)
+    let nm = "FORT_extract_element_" <> s
+    fun t nm $ VTuple pos $ fromList2 [x, y]
+  _ -> err111 "unexpected type to 'extract-element'" x t0 noTCHint
+  where
+  t0 = typeOf x
+  pos = positionOf x
 
 memCall :: Text -> Val -> Val -> Val -> M Val
 memCall n x y z = do
@@ -853,7 +873,13 @@ printVal x = case x of
     printChLit ']'
 
   VUnit _ -> printStrLit "()"
-  VScalar _ _ -> printPrim x
+  VScalar pos _ -> case typeOf x of
+    TyVector _ sz _ -> do
+      printChLit '<'
+      vs <- sequence [ iconst i (TyInt pos I32) >>= extractElement x | i <- [0 .. szVector sz - 1] ]
+      printSep ", " printVal $ toList vs
+      printChLit '>'
+    _ -> printPrim x
   VType _ t -> printStrLit $ Text.pack $ show $ pretty t
   VPtr _ _ a -> printVal a
   VIndexed _ _ sz a -> do
@@ -932,6 +958,9 @@ castCall x ty = if
   | isIntTy tx && isTyFloat ty -> casttoCall "fromto" x ty
   | bitsize tx > bitsize ty -> casttoCallSyn "truncto" x ty
   | bitsize tx < bitsize ty -> casttoCall "extto" x ty
+  | intTySyn tx == intTySyn ty -> case x of
+      VScalar p (VRegister p1 reg) -> pure $ VScalar p (VRegister p1 reg{ registerTy = ty })
+      _ -> casttoCallSyn "bitcast" x ty -- BAL: this should also be a no-op
   | bitsize tx == bitsize ty -> casttoCallSyn "bitcast" x ty
   | otherwise -> unreachable110 "incompatible cast value/type" x ty
   where
@@ -945,6 +974,8 @@ cast x y = do
     | typeOf x `isSmallerOrEq` ty -> do
         v <- freshUndefVal ty
         unionVals x v
+        -- ^ BAL: this isn't right, we need to also cast the register vals
+        -- e.g. { foo :: Char } cast to { foo :: I8 }
     | otherwise -> err111 "unexpected values to 'cast'" x y noTCHint
 
 freshUndefVal :: Ty -> M Val

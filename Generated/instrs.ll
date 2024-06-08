@@ -1552,6 +1552,12 @@ ret <32 x i8> %r
 }
 
 
+define i8 @FORT_extract_element_v32_i8 ( <32 x i8> %v, i32 %i ) #0 {
+%r = extractelement <32 x i8> %v, i32 %i
+ret i8 %r
+}
+
+
 define <32 x i8> @FORT_select_v32_i8 ( <32 x i8> %a, <32 x i8> %x, <32 x i8> %y ) #0 {
 %z = trunc <32 x i8> %a to <32 x i1>
 %r = select <32 x i1> %z, <32 x i8> %x, <32 x i8> %y

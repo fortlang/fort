@@ -2,7 +2,6 @@
 #define BUILTINS_H_
 
 #include <inttypes.h>
-#include <immintrin.h>
 
 extern int test_extern_int;
 
@@ -39,8 +38,5 @@ void FORT_print_U16(uint16_t x);
 void FORT_print_U32(uint32_t x);
 void FORT_print_U64(uint64_t x);
 void FORT_print_ENUM(uint32_t x);
-
-typedef __v32qi v32i8;
-void FORT_print_VectorV32C8(v32i8 x);
 
 #endif // BUILTINS_H_

@@ -1,5 +1,7 @@
 qualifier Prelude = "lib/prelude.fort"
 
+type U8 = U 8
+
 main = do
   p = "Hello simd world!  32 bytes wide"
 
@@ -9,14 +11,14 @@ main = do
   needle = splat 'o' `Vector 32 Char`
   println needle
 
-  indices = upto `Vector 32 Char`
+  indices = upto `Vector 32 U8`
   println indices
 
-  not-found = splat (cast 32 `Char`) `Vector 32 Char`
-  println not-found
-
-  eqs = haystack == needle
+  eqs = cast (haystack == needle) `Vector 32 U8`
   println eqs
+
+  not-found = splat (cast 32 `U8`) `Vector 32 U8`
+  println not-found
 
   result = select eqs indices not-found
   println result
@@ -27,7 +29,6 @@ main = do
 
   println "done"
 
-insert-element = curry3 Prim.insert-element
 typeof-element = Prim.typeof-element
 select = curry3 Prim.select
 reduce-min = Prim.reduce-min
