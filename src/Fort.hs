@@ -100,7 +100,7 @@ fort opts = do
           when doSimplify $ do
             unless (noTypeChecker opts) $ typeCheckModules msdeps
             bldCmd <- toCallCommandArgs <$> simplifyBuildDecls (runTimeChecks opts) bldds
-            doCallCommand "clang" $ ["-dynamiclib", "-o", "fort-ffi.dylib"] ++ bldCmd
+            doCallCommand "clang" $ ["-opaque-pointers", "-dynamiclib", "-o", "fort-ffi.dylib"] ++ bldCmd
             msstmts <- simplifyModules (runTimeChecks opts) msdeps
             
             when (showSimplify opts) $ mapM_ (pp "(simplify)") msstmts
@@ -174,10 +174,10 @@ buildFn :: [String] -> (FilePath, BuildType) -> IO ()
 buildFn bldAppend (fn, bt) = case bt of
   Exe -> do
     putStrLn $ exeFn fn ++ ": (exe)"
-    doCallCommand "clang" $ ["-O3", "-mavx2", "-flto", "-o", exeFn fn, llvmFn fn] ++ bldAppend
+    doCallCommand "clang" $ ["-opaque-pointers", "-O3", "-mavx2", "-flto", "-o", exeFn fn, llvmFn fn] ++ bldAppend
   Obj -> do
     putStrLn $ llvmFn fn ++ ": (obj)"
-    doCallCommand "clang" ["-O3", "-mavx2", "-c", "-o", objFn fn, llvmFn fn]
+    doCallCommand "clang" ["-opaque-pointers", "-O3", "-mavx2", "-c", "-o", objFn fn, llvmFn fn]
   NoCode -> do
     putStrLn $ fn ++ ": (no code)"
     putStrLn "no .exe/.o (no main or exported functions found)"
