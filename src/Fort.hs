@@ -100,7 +100,6 @@ fort opts = do
           when doSimplify $ do
             unless (noTypeChecker opts) $ typeCheckModules msdeps
             bldCmd <- toCallCommandArgs <$> simplifyBuildDecls (runTimeChecks opts) bldds
-            doCallCommand "clang" $ ["-opaque-pointers", "-dynamiclib", "-o", "fort-ffi.dylib"] ++ bldCmd
             msstmts <- simplifyModules (runTimeChecks opts) msdeps
             
             when (showSimplify opts) $ mapM_ (pp "(simplify)") msstmts
